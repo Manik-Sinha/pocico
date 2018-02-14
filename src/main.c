@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 1\nEarly Access February 11, 2018";
+char build_number_string[] = "Build Number 2\nEarly Access February 14, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -86,6 +86,9 @@ void draw_squarediamond(NVGcontext * vg, Game * game, float x, float y, float wi
 
 //Amman Beenker functions.
 void draw_ammann_beenker(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
+
+//Trianglehexagon functions.
+void draw_trianglehexagon(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
 
 //Check if two colors are the same.
 static inline bool same_color(SDL_Color c1, SDL_Color c2);
@@ -308,6 +311,19 @@ const int game_04_ammann_beenker_move_matrix[] = {
   5, 11, 13, 16, 22, 23 //23
 };
 
+int game_05_trianglehexagon_left_state[6];
+int game_05_trianglehexagon_right_state[6];
+const int game_05_trianglehexagon_move_matrix_index[] = {0, 4, 8, 12, 16, 20};
+//Start with 0 at the top and go clockwise to get 1, 2, 3, 4, 5.
+const int game_05_trianglehexagon_move_matrix[] = {
+  3, 0, 1, 5, //0: Top
+  3, 0, 1, 2, //1
+  3, 1, 2, 3, //2
+  3, 2, 3, 4, //3
+  3, 3, 4, 5, //4
+  3, 4, 5, 0, //5
+};
+
 Game game_triforce = {
   1, //uid
   4, //number of states
@@ -355,10 +371,23 @@ Game game_ammann_beenker = {
   draw_ammann_beenker
 };
 
-#define GAME_COUNT 4
+Game game_trianglehexagon = {
+  5, //uid
+  6, //number of states
+  game_05_trianglehexagon_left_state,
+  game_05_trianglehexagon_right_state,
+  2, //mod
+  game_05_trianglehexagon_move_matrix_index, //move matrix index
+  game_05_trianglehexagon_move_matrix, //move_matrix
+  standard_init,
+  draw_trianglehexagon
+};
+
+#define GAME_COUNT 5
 Game * games[GAME_COUNT] = {
   &game_triforce,
   &game_foursquare,
+  &game_trianglehexagon,
   &game_squarediamond,
   &game_ammann_beenker,
 };
@@ -3096,6 +3125,191 @@ void draw_ammann_beenker(NVGcontext * vg, Game * game, float x, float y, float w
     }
   }
 }
+
+void draw_trianglehexagon(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision)
+{
+  *collision = false;
+  int * outer_state = game->right_state;
+  int * inner_state = game->left_state;
+
+  float a = 0.0f;
+  float h = 0.0f;
+
+  if(height < width)
+  {
+    h = height / 2.0f;
+    a = 2.0f * h / sqrt(3);
+  }
+  else
+  {
+    a = width / 2.0f;
+    h = sqrt(3) * a * 0.5f;
+  }
+
+
+  float half_a = a / 2.0f;
+
+  float center_x = x + width / 2.0f;
+  float center_y = y + height / 2.0f;
+
+  x = center_x - half_a;
+  y = center_y - h;
+
+  static Vertex ov[18];
+  static Vertex iv[18];
+
+  float two_thirds_h = 2.0f * h / 3.0f;
+  float small_h = h * INVERSE_GOLDEN_RATIO;
+  float two_thirds_small_h = 2.0f * small_h / 3.0f;
+  float small_half_a = small_h / sqrt(3);
+  float small_a = small_half_a * 2;
+
+  ov[0].x = x;
+  ov[0].y = y;
+  ov[1].x = ov[0].x + half_a;
+  ov[1].y = ov[0].y + h;
+  ov[2].x = ov[0].x + a;
+  ov[2].y = ov[0].y;
+
+  iv[1].x = ov[1].x;
+  iv[1].y = ov[1].y - two_thirds_h + two_thirds_small_h;
+  iv[0].x = iv[1].x - small_half_a;
+  iv[0].y = iv[1].y - small_h;
+  iv[2].x = iv[0].x + small_a;
+  iv[2].y = iv[0].y;
+
+  ov[3].x = ov[2].x;
+  ov[3].y = ov[2].y;
+  ov[4].x = ov[1].x;
+  ov[4].y = ov[1].y;
+  ov[5].x = ov[3].x + half_a;
+  ov[5].y = ov[4].y;
+
+  iv[3].x = ov[3].x;
+  iv[3].y = ov[3].y + two_thirds_h - two_thirds_small_h;
+  iv[4].x = iv[3].x - small_half_a;
+  iv[4].y = iv[3].y + small_h;
+  iv[5].x = iv[3].x + small_half_a;
+  iv[5].y = iv[4].y;
+
+  ov[6].x = ov[5].x;
+  ov[6].y = ov[5].y;
+  ov[7].x = ov[4].x;
+  ov[7].y = ov[4].y;
+  ov[8].x = ov[7].x + half_a;
+  ov[8].y = ov[7].y + h;
+
+  iv[8].x = ov[8].x;
+  iv[8].y = ov[8].y - two_thirds_h + two_thirds_small_h;
+  iv[6].x = iv[8].x + small_half_a;
+  iv[6].y = iv[8].y - small_h;
+  iv[7].x = iv[8].x - small_half_a;
+  iv[7].y = iv[6].y;
+
+  ov[9].x = ov[8].x;
+  ov[9].y = ov[8].y;
+  ov[10].x = ov[7].x;
+  ov[10].y = ov[7].y;
+  ov[11].x = ov[10].x - half_a;
+  ov[11].y = ov[9].y;
+
+  iv[10].x = ov[10].x;
+  iv[10].y = ov[10].y + two_thirds_h - two_thirds_small_h;
+  iv[9].x = iv[10].x + small_half_a;
+  iv[9].y = iv[10].y + small_h;
+  iv[11].x = iv[10].x - small_half_a;
+  iv[11].y = iv[9].y;
+
+  ov[12].x = ov[11].x;
+  ov[12].y = ov[11].y;
+  ov[13].x = ov[10].x;
+  ov[13].y = ov[10].y;
+  ov[14].x = ov[13].x - a;
+  ov[14].y = ov[13].y;
+
+  iv[12].x = ov[12].x;
+  iv[12].y = ov[12].y - two_thirds_h + two_thirds_small_h;
+  iv[13].x = iv[12].x + small_half_a;
+  iv[13].y = iv[12].y - small_h;
+  iv[14].x = iv[12].x - small_half_a;
+  iv[14].y = iv[13].y;
+
+  ov[15].x = ov[14].x;
+  ov[15].y = ov[14].y;
+  ov[16].x = ov[13].x;
+  ov[16].y = ov[13].y;
+  ov[17].x = ov[0].x;
+  ov[17].y = ov[0].y;
+
+  iv[17].x = ov[17].x;
+  iv[17].y = ov[17].y + two_thirds_h - two_thirds_small_h;
+  iv[16].x = iv[17].x + small_half_a;
+  iv[16].y = iv[17].y + small_h;
+  iv[15].x = iv[17].x - small_half_a;
+  iv[15].y = iv[16].y;
+
+  if(mouse_button_down)
+  {
+    for(int i = 0; i < 6; i++)
+    {
+      int v0 = i * 3;
+      int v1 = v0 + 1;
+      int v2 = v1 + 1;
+      if(point_in_triangle(mouse.x, mouse.y, ov[v0].x, ov[v0].y, ov[v1].x, ov[v1].y, ov[v2].x, ov[v2].y))
+      {
+        transform(
+          i,
+          outer_state,
+          game->move_matrix,
+          game->move_matrix_index,
+          game->mod,
+          1
+        );
+        *collision = true;
+      }
+    }
+  }
+
+  float stroke_width = a * 0.025f;
+  NVGcolor stroke_color = nvgRGB(255, 255, 255);
+
+  for(int i = 0; i < 18; i = i + 3)
+  {
+    int v0 = i;
+    int v1 = i + 1;
+    int v2 = i + 2;
+    nvgLineJoin(vg, NVG_ROUND);
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, ov[v0].x, ov[v0].y);
+    nvgLineTo(vg, ov[v1].x, ov[v1].y);
+    nvgLineTo(vg, ov[v2].x, ov[v2].y);
+    nvgClosePath(vg);
+    SDL_Color outer_color = colors[outer_state[i/3]];
+    nvgFillColor(vg, nvgRGB(outer_color.r, outer_color.g, outer_color.b));
+    nvgFill(vg);
+    nvgStrokeColor(vg, stroke_color);
+    nvgStrokeWidth(vg, stroke_width);
+    nvgStroke(vg);
+
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, iv[v0].x, iv[v0].y);
+    nvgLineTo(vg, iv[v1].x, iv[v1].y);
+    nvgLineTo(vg, iv[v2].x, iv[v2].y);
+    nvgClosePath(vg);
+    SDL_Color inner_color = colors[inner_state[i/3]];
+    nvgFillColor(vg, nvgRGB(inner_color.r, inner_color.g, inner_color.b));
+    nvgFill(vg);
+
+    if(!same_color(colors[outer_state[i/3]], colors[inner_state[i/3]]))
+    {
+      nvgStrokeColor(vg, nvgRGB(255, 255, 255));
+      nvgStrokeWidth(vg, stroke_width);
+      nvgStroke(vg);
+    }
+  }
+
+}
+
 
 static inline bool same_color(SDL_Color c1, SDL_Color c2)
 {
