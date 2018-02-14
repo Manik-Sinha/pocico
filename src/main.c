@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 2\nEarly Access February 14, 2018";
+char build_number_string[] = "Build Number 2\nDemo February 14, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -383,13 +383,13 @@ Game game_trianglehexagon = {
   draw_trianglehexagon
 };
 
-#define GAME_COUNT 5
+#define GAME_COUNT 2
 Game * games[GAME_COUNT] = {
-  &game_triforce,
-  &game_foursquare,
+  //&game_triforce,
+  //&game_foursquare,
   &game_trianglehexagon,
   &game_squarediamond,
-  &game_ammann_beenker,
+  //&game_ammann_beenker,
 };
 
 int main(int argc, char * argv[])
@@ -766,7 +766,7 @@ int main(int argc, char * argv[])
         nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 
         float bounds[4];
-        nvgTextBounds(vg, x, y, "Play", NULL, bounds);
+        nvgTextBounds(vg, x, y, "Play     ", NULL, bounds);
         float bounds_x = bounds[0];
         float bounds_y = bounds[1];
         float bounds_width = bounds[2] - bounds[0];
@@ -815,7 +815,7 @@ int main(int argc, char * argv[])
           nvgFill(vg);
 
           nvgFillColor(vg, nvgRGB(255, 255, 255));
-          nvgText(vg, x, y, "Play", NULL);
+          nvgText(vg, x, y, "Play Demo", NULL);
 
           if(mouse_button_down)
           {
@@ -827,7 +827,7 @@ int main(int argc, char * argv[])
         else
         {
           nvgFillColor(vg, nvgRGB(0, 0, 0));
-          nvgText(vg, x, y, "Play", NULL);
+          nvgText(vg, x, y, "Play Demo", NULL);
         }
       }
 
