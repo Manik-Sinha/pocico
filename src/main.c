@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 2\nEarly Access February 14, 2018";
+char build_number_string[] = "Build Number 3\nEarly Access February 18, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -89,6 +89,9 @@ void draw_ammann_beenker(NVGcontext * vg, Game * game, float x, float y, float w
 
 //Trianglehexagon functions.
 void draw_trianglehexagon(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
+
+//Diamondhexagon functions.
+void draw_diamondhexagon(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
 
 //Check if two colors are the same.
 static inline bool same_color(SDL_Color c1, SDL_Color c2);
@@ -324,6 +327,24 @@ const int game_05_trianglehexagon_move_matrix[] = {
   3, 4, 5, 0, //5
 };
 
+int game_06_diamondhexagon_left_state[12];
+int game_06_diamondhexagon_right_state[12];
+const int game_06_diamondhexagon_move_matrix_index[] = {0, 4, 10, 14, 20, 24, 30, 34, 40, 44, 50, 54};
+const int game_06_diamondhexagon_move_matrix[] = {
+  3, 0, 1, 11,        //0
+  5, 0, 1, 2, 3, 11,  //1
+  3, 1, 2, 3,         //2
+  5, 1, 2, 3, 4, 5,   //3
+  3, 3, 4, 5,         //4
+  5, 3, 4, 5, 6, 7,   //5
+  3, 5, 6, 7,         //6
+  5, 5, 6, 7, 8, 9,   //7
+  3, 7, 8, 9,         //8
+  5, 7, 8, 9, 10, 11, //9
+  3, 9, 10, 11,       //10
+  5, 0, 1, 9, 10, 11, //11
+};
+
 Game game_triforce = {
   1, //uid
   4, //number of states
@@ -383,14 +404,29 @@ Game game_trianglehexagon = {
   draw_trianglehexagon
 };
 
-#define GAME_COUNT 5
+Game game_diamondhexagon = {
+  6, //uid
+  12, //number of states
+  game_06_diamondhexagon_left_state,
+  game_06_diamondhexagon_right_state,
+  2, //mod
+  game_06_diamondhexagon_move_matrix_index, //move matrix index
+  game_06_diamondhexagon_move_matrix, //move_matrix
+  standard_init,
+  draw_diamondhexagon
+};
+
+#define GAME_COUNT 6
 Game * games[GAME_COUNT] = {
   &game_triforce,
   &game_foursquare,
   &game_trianglehexagon,
+  &game_diamondhexagon,
   &game_squarediamond,
   &game_ammann_beenker,
 };
+
+//#define TESTING_NEW_PUZZLE
 
 int main(int argc, char * argv[])
 {
@@ -598,6 +634,10 @@ int main(int argc, char * argv[])
 
   //The game starts at the menu.
   enum GAMESTATE gamestate = MAIN_MENU;
+
+  #ifdef TESTING_NEW_PUZZLE
+  gamestate = PLAYING;
+  #endif
 
   int randomize_state_die_face = rand() % 6 + 1;
   int randomize_color_die_face = rand() % 6 + 1;
@@ -3308,6 +3348,261 @@ void draw_trianglehexagon(NVGcontext * vg, Game * game, float x, float y, float 
     }
   }
 
+}
+
+void draw_diamondhexagon(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision)
+{
+  *collision = false;
+  int * outer_state = game->right_state;
+  int * inner_state = game->left_state;
+
+  static Vertex ov[12][4];
+  static Vertex iv[12][4];
+
+  float const sin30 = 0.5f;
+  float const cos30 = 0.86602540378f;
+
+  float hexagon_height = height;
+  float hexagon_width = hexagon_height * cos30;
+  if(hexagon_width > width)
+  {
+    hexagon_width = width;
+    hexagon_height = hexagon_width / cos30;
+  }
+
+  x = width / 2.0f;
+  if(width < height)
+  {
+    y = y + (height - hexagon_height) / 2.0f;
+  }
+
+  float a = hexagon_height / 4.0f;
+  float half_h = a * sin30;
+  float half_w = a * cos30;
+  float h = half_h * 2.0f;
+  float w = half_w * 2.0f;
+
+  ov[0][1].x = x;
+  ov[0][1].y = y;
+  ov[0][2].x = x - half_w;
+  ov[0][2].y = y + half_h;
+  ov[0][3].x = x;
+  ov[0][3].y = y + h;
+  ov[0][0].x = x + half_w;
+  ov[0][0].y = ov[0][2].y;
+
+  ov[1][0].x = ov[0][0].x;
+  ov[1][0].y = ov[0][0].y;
+  ov[1][1].x = ov[0][3].x;
+  ov[1][1].y = ov[0][3].y;
+  ov[1][2].x = ov[1][1].x;
+  ov[1][2].y = ov[1][1].y + a;
+  ov[1][3].x = ov[1][0].x;
+  ov[1][3].y = ov[1][0].y + a;
+
+  ov[3][1].x = ov[1][3].x;
+  ov[3][1].y = ov[1][3].y;
+  ov[3][2].x = ov[1][2].x;
+  ov[3][2].y = ov[1][2].y;
+  ov[3][3].x = ov[3][1].x;
+  ov[3][3].y = ov[3][1].y + h;
+  ov[3][0].x = ov[3][2].x + w;
+  ov[3][0].y = ov[3][2].y;
+
+  ov[2][2].x = ov[1][0].x;
+  ov[2][2].y = ov[1][0].y;
+  ov[2][3].x = ov[1][3].x;
+  ov[2][3].y = ov[1][3].y;
+  ov[2][0].x = ov[3][0].x;
+  ov[2][0].y = ov[3][0].y;
+  ov[2][1].x = ov[2][0].x;
+  ov[2][1].y = ov[2][0].y - a;
+
+  ov[4][0].x = ov[3][0].x;
+  ov[4][0].y = ov[3][0].y;
+  ov[4][1].x = ov[3][3].x;
+  ov[4][1].y = ov[3][3].y;
+  ov[4][2].x = ov[4][1].x;
+  ov[4][2].y = ov[4][1].y + a;
+  ov[4][3].x = ov[4][0].x;
+  ov[4][3].y = ov[4][0].y + a;
+
+  ov[5][0].x = ov[4][2].x;
+  ov[5][0].y = ov[4][2].y;
+  ov[5][1].x = ov[4][1].x;
+  ov[5][1].y = ov[4][1].y;
+  ov[5][2].x = ov[3][2].x;
+  ov[5][2].y = ov[3][2].y;
+  ov[5][3].x = ov[5][2].x;
+  ov[5][3].y = ov[4][3].y;
+
+  ov[6][0].x = ov[5][0].x;
+  ov[6][0].y = ov[5][0].y;
+  ov[6][1].x = ov[5][3].x;
+  ov[6][1].y = ov[5][3].y;
+  ov[6][2].x = ov[6][1].x - half_w;
+  ov[6][2].y = ov[6][0].y;
+  ov[6][3].x = ov[6][1].x;
+  ov[6][3].y = ov[6][1].y + h;
+
+  ov[7][2].x = ov[6][2].x;
+  ov[7][2].y = ov[6][2].y;
+  ov[7][3].x = ov[6][1].x;
+  ov[7][3].y = ov[6][1].y;
+  ov[7][0].x = ov[5][2].x;
+  ov[7][0].y = ov[5][2].y;
+  ov[7][1].x = ov[7][2].x;
+  ov[7][1].y = ov[5][1].y;
+
+  ov[8][0].x = ov[7][2].x;
+  ov[8][0].y = ov[7][2].y;
+  ov[8][1].x = ov[7][1].x;
+  ov[8][1].y = ov[7][1].y;
+  ov[8][2].x = ov[8][1].x - half_w;
+  ov[8][2].y = ov[7][0].y;
+  ov[8][3].x = ov[8][2].x;
+  ov[8][3].y = ov[7][3].y;
+
+  ov[9][2].x = ov[8][2].x;
+  ov[9][2].y = ov[8][2].y;
+  ov[9][3].x = ov[8][1].x;
+  ov[9][3].y = ov[8][1].y;
+  ov[9][0].x = ov[7][0].x;
+  ov[9][0].y = ov[7][0].y;
+  ov[9][1].x = ov[9][3].x;
+  ov[9][1].y = ov[3][1].y;
+
+  ov[10][2].x = ov[9][2].x;
+  ov[10][2].y = ov[9][2].y;
+  ov[10][3].x = ov[9][1].x;
+  ov[10][3].y = ov[9][1].y;
+  ov[10][0].x = ov[10][3].x;
+  ov[10][0].y = ov[1][0].y;
+  ov[10][1].x = ov[10][2].x;
+  ov[10][1].y = ov[2][1].y;
+
+  ov[11][3].x = ov[10][3].x;
+  ov[11][3].y = ov[10][3].y;
+  ov[11][0].x = ov[9][0].x;
+  ov[11][0].y = ov[9][0].y;
+  ov[11][1].x = ov[1][1].x;
+  ov[11][1].y = ov[1][1].y;
+  ov[11][2].x = ov[0][2].x;
+  ov[11][2].y = ov[0][2].y;
+
+  float percent = 0.19098300562f; //1.0f - (GOLDEN_RATIO / 2.0f)
+
+  //Calculate inner vertices for rhombi that look like Rhombus 0.
+  //Rhombus 0 is the rhombus that corresponds to ov[0][].
+  for(int i = 0; i < 12; i += 3)
+  {
+    float x_0_2 = (ov[i][0].x - ov[i][2].x) * percent;
+    float y_3_1 = (ov[i][3].y - ov[i][1].y) * percent;
+
+    iv[i][1].x = ov[i][1].x;
+    iv[i][1].y = ov[i][1].y + y_3_1;
+    iv[i][2].x = ov[i][2].x + x_0_2;
+    iv[i][2].y = ov[i][2].y;
+    iv[i][3].x = ov[i][3].x;
+    iv[i][3].y = ov[i][3].y - y_3_1;
+    iv[i][0].x = ov[i][0].x - x_0_2;
+    iv[i][0].y = ov[i][0].y;
+  }
+
+  //Calculate inner vertices for rhombi that look like Rhombus 1.
+  //Rhombus 1 is the rhombus that corresponds to ov[1][].
+  for(int i = 1; i < 12; i += 3)
+  {
+    float x_0_2 = (ov[i][0].x - ov[i][2].x) * percent;
+    float y_2_0 = (ov[i][2].y - ov[i][0].y) * percent;
+    float x_3_1 = (ov[i][3].x - ov[i][1].x) * percent;
+    float y_3_1 = (ov[i][3].y - ov[i][1].y) * percent;
+
+    iv[i][0].x = ov[i][0].x - x_0_2;
+    iv[i][0].y = ov[i][0].y + y_2_0;
+    iv[i][1].x = ov[i][1].x + x_3_1;
+    iv[i][1].y = ov[i][1].y + y_3_1;
+    iv[i][2].x = iv[i][1].x;
+    iv[i][2].y = ov[i][2].y - y_2_0;
+    iv[i][3].x = iv[i][0].x;
+    iv[i][3].y = ov[i][3].y - y_3_1;
+  }
+
+  //Calculate inner vertices for rhombi that look like Rhombus 2.
+  //Rhombus 2 is the rhombus that corresponds to ov[2][].
+  for(int i = 2; i < 12; i += 3)
+  {
+    float x_0_2 = (ov[i][0].x - ov[i][2].x) * percent;
+    float y_0_2 = (ov[i][0].y - ov[i][2].y) * percent;
+    float x_1_3 = (ov[i][1].x - ov[i][3].x) * percent;
+    float y_3_1 = (ov[i][3].y - ov[i][1].y) * percent;
+
+    iv[i][0].x = ov[i][0].x - x_0_2;
+    iv[i][0].y = ov[i][0].y - y_0_2;
+    iv[i][1].x = iv[i][0].x;
+    iv[i][1].y = ov[i][1].y + y_3_1;
+    iv[i][2].x = ov[i][2].x + x_0_2;
+    iv[i][2].y = ov[i][2].y + y_0_2;
+    iv[i][3].x = iv[i][2].x;
+    iv[i][3].y = ov[i][3].y - y_3_1;
+  }
+
+  //Check for collisions.
+  if(mouse_button_down)
+  {
+    for(int i = 0; i < 12; i++)
+    {
+      if(point_in_quad(mouse.x, mouse.y, ov[i][0].x, ov[i][0].y, ov[i][1].x, ov[i][1].y, ov[i][2].x, ov[i][2].y, ov[i][3].x, ov[i][3].y))
+      {
+        transform(
+          i,
+          outer_state,
+          game->move_matrix,
+          game->move_matrix_index,
+          game->mod,
+          1
+        );
+        *collision = true;
+      }
+    }
+  }
+
+  float stroke_width = a * 0.025f;
+  NVGcolor stroke_color = nvgRGB(255, 255, 255);
+
+  for(int i = 0; i < 12; i++)
+  {
+    nvgLineJoin(vg, NVG_ROUND);
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, ov[i][0].x, ov[i][0].y);
+    nvgLineTo(vg, ov[i][1].x, ov[i][1].y);
+    nvgLineTo(vg, ov[i][2].x, ov[i][2].y);
+    nvgLineTo(vg, ov[i][3].x, ov[i][3].y);
+    nvgClosePath(vg);
+    SDL_Color outer_color = colors[outer_state[i]];
+    nvgFillColor(vg, nvgRGB(outer_color.r, outer_color.g, outer_color.b));
+    nvgFill(vg);
+    nvgStrokeColor(vg, stroke_color);
+    nvgStrokeWidth(vg, stroke_width);
+    nvgStroke(vg);
+
+    SDL_Color inner_color = colors[inner_state[i]];
+    if(!same_color(inner_color, outer_color))
+    {
+      nvgLineJoin(vg, NVG_MITER);
+      nvgBeginPath(vg);
+      nvgMoveTo(vg, iv[i][0].x, iv[i][0].y);
+      nvgLineTo(vg, iv[i][1].x, iv[i][1].y);
+      nvgLineTo(vg, iv[i][2].x, iv[i][2].y);
+      nvgLineTo(vg, iv[i][3].x, iv[i][3].y);
+      nvgClosePath(vg);
+      nvgFillColor(vg, nvgRGB(inner_color.r, inner_color.g, inner_color.b));
+      nvgFill(vg);
+      nvgStrokeColor(vg, stroke_color);
+      nvgStrokeWidth(vg, stroke_width);
+      nvgStroke(vg);
+    }
+  }
 }
 
 
