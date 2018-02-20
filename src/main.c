@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 3\nEarly Access February 18, 2018";
+char build_number_string[] = "Build Number 3-1\nEarly Access February 20, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -63,6 +63,12 @@ typedef struct Vertex {
   float y;
 } Vertex;
 
+typedef struct Growable {
+  const int min_number_of_states;
+  int number_of_states;
+  const int max_number_of_states;
+} Growable;
+
 typedef struct Game {
   const int uid;
   const int number_of_states;
@@ -73,6 +79,9 @@ typedef struct Game {
   const int * move_matrix;
   void (*init) (struct Game*);
   void (*draw) (NVGcontext * vg, struct Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
+  void (*randomize) (struct Game*);
+  const bool growable;
+  Growable growable_data;
 } Game;
 
 //Triforce functions.
@@ -92,6 +101,10 @@ void draw_trianglehexagon(NVGcontext * vg, Game * game, float x, float y, float 
 
 //Diamondhexagon functions.
 void draw_diamondhexagon(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
+
+//Growable Triplets functions.
+void draw_growabletriplets(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
+static inline void triplets_transform(const int position, int * const state, const int number_of_states, const int mod, const int times);
 
 //Check if two colors are the same.
 static inline bool same_color(SDL_Color c1, SDL_Color c2);
@@ -135,6 +148,27 @@ transform(
   {
     state[move_matrix[i]] = (state[move_matrix[i]] + times) % mod;
   }
+}
+
+static inline void triplets_transform(
+  const int position,
+  int * const state,
+  const int number_of_states,
+  const int mod,
+  const int times
+)
+{
+  //Warning: no error checking in this function.
+  int left = position - 1;
+  if(left < 0)
+  {
+    left = number_of_states - 1;
+  }
+  int center = position;
+  int right = (position + 1) % number_of_states;
+  state[left] = (state[left] + times) % mod;
+  state[center] = (state[center] + times) % mod;
+  state[right] = (state[right] + times) % mod;
 }
 
 //Check whether two states match or not.
@@ -219,10 +253,80 @@ static void randomize(Game * game)
   }
 }
 
+//Special randomization function to randomize the left and right states
+//for games that are like triplets.
+static void triplets_randomize(Game * game)
+{
+  int number_of_states = game->number_of_states;
+  if(game->growable)
+  {
+    number_of_states = game->growable_data.number_of_states;
+  }
+
+  int old_left_state[number_of_states];
+  int old_right_state[number_of_states];
+  for(int i = 0; i < number_of_states; i++)
+  {
+    old_left_state[i] = game->left_state[i];
+    old_right_state[i] = game->right_state[i];
+  }
+
+  bool won = matching(game->left_state, game->right_state, number_of_states);
+
+  while(true)
+  {
+    //Randomize the left state, and
+    //set right state to be exactly left state.
+    for(int i = 0; i < number_of_states; i++)
+    {
+      game->left_state[i] = rand() % game->mod;
+      game->right_state[i] = game->left_state[i];
+    }
+
+    //Randomize the right state by randomly transforming it.
+    for(int i = 0; i < number_of_states; i++)
+    {
+      int times = rand() % number_of_states;
+      triplets_transform(
+        i,
+        game->right_state,
+        number_of_states,
+        game->mod,
+        times
+      );
+    }
+
+    //If the player won, then we are done if left and right states aren't the same.
+    if(won)
+    {
+      if(!matching(game->left_state, game->right_state, number_of_states))
+      {
+        return;
+      }
+    }
+    else
+    {//However, if the player hasn't won, then we are more picky.
+      //First, the left and right states have to be different,
+      if(!matching(game->left_state, game->right_state, number_of_states))
+      {
+        //and then, either the left state has to be different
+        //than what it was before randomizing, or the right has to be different
+        //than what it was before randomizing. This ensures that when we randomize,
+        //there is a visible change. Otherwise there is a possibility that
+        //exactly the same state as before randomizing occurs again.
+        if( (!matching(game->left_state, old_left_state, number_of_states)) ||
+            (!matching(game->right_state, old_right_state, number_of_states)) )
+        {
+          return;
+        }
+      }
+    }
+  }
+}
 
 void standard_init(Game * game)
 {
-  randomize(game);
+  game->randomize(game);
 }
 
 int game_01_triforce_left_state[4];
@@ -345,6 +449,9 @@ const int game_06_diamondhexagon_move_matrix[] = {
   5, 0, 1, 9, 10, 11, //11
 };
 
+int game_07_growabletriplets_left_state[16];
+int game_07_growabletriplets_right_state[16];
+
 Game game_triforce = {
   1, //uid
   4, //number of states
@@ -354,7 +461,10 @@ Game game_triforce = {
   game_01_triforce_move_matrix_index,
   game_01_triforce_move_matrix,
   standard_init,
-  draw_triforce
+  draw_triforce,
+  randomize,
+  false, //growable
+  {} //growable_data
 };
 Game game_foursquare = {
   2, //uid
@@ -365,7 +475,10 @@ Game game_foursquare = {
   game_02_foursquare_move_matrix_index,
   game_02_foursquare_move_matrix,
   standard_init,
-  draw_foursquare
+  draw_foursquare,
+  randomize,
+  false, //growable
+  {} //growable_data
 };
 
 Game game_squarediamond = {
@@ -377,7 +490,10 @@ Game game_squarediamond = {
   game_03_squarediamond_move_matrix_index,
   game_03_squarediamond_move_matrix,
   standard_init,
-  draw_squarediamond
+  draw_squarediamond,
+  randomize,
+  false, //growable
+  {} //growable_data
 };
 
 Game game_ammann_beenker = {
@@ -389,7 +505,10 @@ Game game_ammann_beenker = {
   game_04_ammann_beenker_move_matrix_index, //move matrix index
   game_04_ammann_beenker_move_matrix, //move matrix
   standard_init,
-  draw_ammann_beenker
+  draw_ammann_beenker,
+  randomize,
+  false, //growable
+  {} //growable_data
 };
 
 Game game_trianglehexagon = {
@@ -401,7 +520,10 @@ Game game_trianglehexagon = {
   game_05_trianglehexagon_move_matrix_index, //move matrix index
   game_05_trianglehexagon_move_matrix, //move_matrix
   standard_init,
-  draw_trianglehexagon
+  draw_trianglehexagon,
+  randomize,
+  false, //growable
+  {} //growable_data
 };
 
 Game game_diamondhexagon = {
@@ -413,14 +535,38 @@ Game game_diamondhexagon = {
   game_06_diamondhexagon_move_matrix_index, //move matrix index
   game_06_diamondhexagon_move_matrix, //move_matrix
   standard_init,
-  draw_diamondhexagon
+  draw_diamondhexagon,
+  randomize,
+  false, //growable
+  {} //growable_data
 };
 
-#define GAME_COUNT 6
+Game game_growabletriplets = {
+  7, //uid
+  24, //number of states
+  game_07_growabletriplets_left_state,
+  game_07_growabletriplets_right_state,
+  2, //mod
+  NULL, //move matrix index
+  NULL, //move_matrix
+  standard_init,
+  &draw_growabletriplets,
+  triplets_randomize,
+  true, //growable
+  //growable_data
+  {
+    4, //min_number_of_states
+    5, //number_of_states
+    16 //max_number_of_states
+  }
+};
+
+#define GAME_COUNT 7
 Game * games[GAME_COUNT] = {
   &game_triforce,
   &game_foursquare,
   &game_trianglehexagon,
+  &game_growabletriplets,
   &game_diamondhexagon,
   &game_squarediamond,
   &game_ammann_beenker,
@@ -962,19 +1108,26 @@ int main(int argc, char * argv[])
     }
     else if(gamestate == PLAYING)
     {
-      if(matching(games[current_game]->left_state, games[current_game]->right_state, games[current_game]->number_of_states))
       {
-        //If we just won, choose a random win message.
-        if(won_game == false)
+        int number_of_states = games[current_game]->number_of_states;
+        if(games[current_game]->growable)
         {
-          current_win_message = win_messages[rand()%MAX_WIN_MESSAGES];
+          number_of_states = games[current_game]->growable_data.number_of_states;
         }
+        if(matching(games[current_game]->left_state, games[current_game]->right_state, number_of_states))
+        {
+          //If we just won, choose a random win message.
+          if(won_game == false)
+          {
+            current_win_message = win_messages[rand()%MAX_WIN_MESSAGES];
+          }
 
-        won_game = true;
-      }
-      else
-      {
-        won_game = false;
+          won_game = true;
+        }
+        else
+        {
+          won_game = false;
+        }
       }
 
       nvgBeginFrame(vg, width, height, 1);
@@ -987,6 +1140,7 @@ int main(int argc, char * argv[])
       //float h = (height - height * 0.1) * percent;
       float h = height * percent;
   /*
+      //Black bars with center green rectangle.
       nvgBeginPath(vg);
       nvgRect(vg, x, y, w, h);
       nvgClosePath(vg);
@@ -1029,6 +1183,7 @@ int main(int argc, char * argv[])
       float percent_toolbar = 0.18f;//0.12f;
       {
         int button_count = 6;
+        if(games[current_game]->growable) button_count++;
         float xx = 0;
         //float yy = height - (height * percent_toolbar);
         float yy = height * (1 - percent_toolbar);
@@ -1063,7 +1218,7 @@ int main(int argc, char * argv[])
             float available_width = h * GOLDEN_RATIO;
             if(available_width > width) available_width = width;
             _x = (width - available_width) / 2.0f;
-            _w = (available_width - (5.0f * spacing)) / 6.0f;
+            _w = (available_width - ((float) (button_count - 1) * spacing)) / (float) button_count;
             _h = _w;
           }
           else
@@ -1087,7 +1242,7 @@ int main(int argc, char * argv[])
             dice_fg_color = &color_white;
             if(mouse_button_down)
             {
-              randomize(games[current_game]);
+              games[current_game]->randomize(games[current_game]);
               //Only play higher notes starting with C_high.
               Mix_PlayChannel(-1, notes[rand() % 8 + 7], 0);
               int old_face = randomize_state_die_face;
@@ -1215,7 +1370,7 @@ int main(int argc, char * argv[])
                 {
                   games[current_game]->mod = 9;
                 }
-                randomize(games[current_game]);
+                games[current_game]->randomize(games[current_game]);
                 //Only play higher notes starting with C_high.
                 Mix_PlayChannel(-1, notes[rand() % 8 + 7], 0);
               }
@@ -1259,7 +1414,7 @@ int main(int argc, char * argv[])
                 {
                   games[current_game]->mod = 2;
                 }
-                randomize(games[current_game]);
+                games[current_game]->randomize(games[current_game]);
                 //Only play higher notes starting with C_high.
                 Mix_PlayChannel(-1, notes[rand() % 8 + 7], 0);
               }
@@ -1285,6 +1440,87 @@ int main(int argc, char * argv[])
             nvgFill(vg);
           }
 
+          if(games[current_game]->growable)
+          {
+            //Increase shapes button.
+            _x = _x + _w + spacing;
+              dice_bg_color = &color_white;
+            dice_fg_color = &color_black;
+            if(point_in_rect(mouse.x, mouse.y, _x - (spacing / 2.0f), _y, _w + spacing, _w / 2.0f))
+            {
+              dice_bg_color = &color_black;
+              dice_fg_color = &color_white;
+              if(mouse_button_down)
+              {
+                if(games[current_game]->growable_data.number_of_states < games[current_game]->growable_data.max_number_of_states)
+                {
+                  ++games[current_game]->growable_data.number_of_states;
+                  games[current_game]->randomize(games[current_game]);
+                  //Only play higher notes starting with C_high.
+                  Mix_PlayChannel(-1, notes[rand() % 8 + 7], 0);
+                }
+              }
+            }
+
+            {
+              nvgBeginPath(vg);
+              nvgRect(vg, _x, _y, _w, _w / 2.0f + stroke_offset);
+              nvgClosePath(vg);
+              nvgFillColor(vg, *dice_bg_color);
+              nvgFill(vg);
+              nvgStrokeColor(vg, *dice_bg_color);
+              nvgStrokeWidth(vg, stroke_width);
+              nvgStroke(vg);
+
+              nvgBeginPath(vg);
+
+              nvgMoveTo(vg, _x + stroke_offset, _y + (_w / 2.0f) - stroke_offset);
+              nvgLineTo(vg, _x + _w - stroke_offset, _y + (_w / 2.0f) - stroke_offset);
+              nvgLineTo(vg, _x + _w / 2.0f, _y + stroke_offset);
+              nvgClosePath(vg);
+              nvgFillColor(vg, *dice_fg_color);
+              nvgFill(vg);
+            }
+
+            //Decrease shapes button.
+            NVGcolor color_clear = nvgRGBA(255, 255, 255, 0);
+            dice_bg_color = &color_clear;
+            dice_fg_color = &color_black;
+            if(point_in_rect(mouse.x, mouse.y, _x - (spacing / 2.0f), _y + _w / 2.0f, _w + spacing, _w / 2.0f))
+            {
+              dice_bg_color = &color_black;
+              dice_fg_color = &color_white;
+              if(mouse_button_down)
+              {
+                if(games[current_game]->growable_data.number_of_states > games[current_game]->growable_data.min_number_of_states)
+                {
+                  --games[current_game]->growable_data.number_of_states;
+                  games[current_game]->randomize(games[current_game]);
+                  //Only play higher notes starting with C_high.
+                  Mix_PlayChannel(-1, notes[rand() % 8 + 7], 0);
+                }
+              }
+            }
+
+            {
+              nvgBeginPath(vg);
+              nvgRect(vg, _x, _y + _w / 2.0f, _w, _w / 2.0f);
+              nvgClosePath(vg);
+              nvgFillColor(vg, *dice_bg_color);
+              nvgFill(vg);
+              nvgStrokeColor(vg, *dice_bg_color);
+              nvgStrokeWidth(vg, stroke_width);
+              nvgStroke(vg);
+
+              nvgBeginPath(vg);
+              nvgMoveTo(vg, _x + stroke_offset, _y + (_w / 2.0f) + stroke_offset);
+              nvgLineTo(vg, _x + _w - stroke_offset, _y + (_w / 2.0f) + stroke_offset);
+              nvgLineTo(vg, _x + _w / 2.0f, _y + _w - stroke_offset);
+              nvgClosePath(vg);
+              nvgFillColor(vg, *dice_fg_color);
+              nvgFill(vg);
+            }
+          }
 
           //Previous Level Button.
           _x = _x + _w + spacing;
@@ -3605,6 +3841,93 @@ void draw_diamondhexagon(NVGcontext * vg, Game * game, float x, float y, float w
   }
 }
 
+void draw_growabletriplets(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision)
+{
+  *collision = false;
+  int * outer_state = game->right_state;
+  int * inner_state = game->left_state;
+
+  int number_of_states = game->growable_data.number_of_states;
+  float center_x = x + width / 2.0f;
+  float center_y = y + height / 2.0f;
+  double radius = 0;
+
+  if(height < width)
+  {
+    radius = (double) height / 2.0;
+  }
+  else
+  {
+    radius = (double) width / 2.0;
+  }
+  double theta = 2.0 * M_PI / (double) number_of_states;
+  double half_theta = theta / 2.0;
+
+  static Vertex ov[24][2];
+  static Vertex iv[24];
+
+  double angle = 0;
+  double inner_radius = radius * GOLDEN_RATIO * 0.25;//radius * cos(half_theta) * INVERSE_GOLDEN_RATIO;
+  double radius_offset = radius * cos(half_theta) * INVERSE_GOLDEN_RATIO;//radius * 0.65;
+  float stroke_width = radius * 0.025;
+  //float radius_circle = radius_offset * sin(half_theta) * 0.5;
+  double HALF_PI = M_PI / 2.0;
+  for(int i = 0; i < number_of_states; i++)
+  {
+    ov[i][0].x = center_x + (radius * cos(HALF_PI - (angle + theta)));
+    ov[i][0].y = center_y - (radius * sin(HALF_PI - (angle + theta)));
+    ov[i][1].x = center_x + (radius * cos(HALF_PI - angle));
+    ov[i][1].y = center_y - (radius * sin(HALF_PI - angle));
+
+    iv[i].x = center_x + (radius_offset * cos(HALF_PI - (angle + half_theta)));
+    iv[i].y = center_y - (radius_offset * sin(HALF_PI - (angle + half_theta)));
+
+    if(i == 0)
+    {
+      float xs = ov[i][0].x - ov[i][1].x;
+      float ys = ov[i][0].y - ov[i][1].y;
+      stroke_width = sqrt(xs * xs + ys * ys) * 0.025f;
+    }
+
+    if(mouse_button_down && point_in_triangle(mouse.x, mouse.y, center_x, center_y, ov[i][0].x, ov[i][0].y, ov[i][1].x, ov[i][1].y))
+    {
+      triplets_transform(i, outer_state, number_of_states, game->mod, 1);
+      *collision = true;
+    }
+    angle = angle + theta;
+  }
+  NVGcolor stroke_color = nvgRGB(255, 255, 255);
+  for(int i = 0; i < number_of_states; i++)
+  {
+    nvgLineJoin(vg, NVG_ROUND);
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, center_x, center_y);
+    nvgLineTo(vg, ov[i][0].x, ov[i][0].y);
+    nvgLineTo(vg, ov[i][1].x, ov[i][1].y);
+    nvgClosePath(vg);
+    SDL_Color outer_color = colors[outer_state[i]];
+    nvgFillColor(vg, nvgRGB(outer_color.r, outer_color.g, outer_color.b));
+    nvgFill(vg);
+    nvgStrokeColor(vg, stroke_color);
+    nvgStrokeWidth(vg, stroke_width);
+    nvgStroke(vg);
+
+    SDL_Color inner_color = colors[inner_state[i]];
+    if(!same_color(inner_color, outer_color))
+    {
+      nvgBeginPath(vg);
+      nvgCircle(vg, iv[i].x, iv[i].y, inner_radius/4.0);
+      //nvgCircle(vg, iv[i][0].x, iv[i][0].y, radius_circle);
+      nvgClosePath(vg);
+      nvgFillColor(vg, nvgRGB(inner_color.r, inner_color.g, inner_color.b));
+      nvgFill(vg);
+      nvgStrokeColor(vg, stroke_color);
+      nvgStrokeWidth(vg, stroke_width);
+      nvgStroke(vg);
+    }
+  }
+
+}
 
 static inline bool same_color(SDL_Color c1, SDL_Color c2)
 {
