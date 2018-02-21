@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 3-6\nEarly Access February 21, 2018";
+char build_number_string[] = "Build Number 4\nEarly Access February 21, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -1140,8 +1140,7 @@ int main(int argc, char * argv[])
 
       float percent_toolbar = 0.18f;//0.12f;
       {
-        int button_count = 6;
-        if(games[current_game]->growable) button_count++;
+        int button_count = 7;
         float xx = 0;
         //float yy = height - (height * percent_toolbar);
         float yy = height * (1 - percent_toolbar);
@@ -1165,15 +1164,15 @@ int main(int argc, char * argv[])
 
 
 
-          float _w = hh * 0.61f;//0.75f;//0.86f;
+          float _w = hh * 0.5f;//0.5f;//0.61f;//0.75f;//0.86f;
           float _h = _w;
           float spacing = _w / GOLDEN_RATIO;//_w / 2.0f;
-          float _x = width / 2.0f * 0.61f;
-          float _y = height - hh + (hh - _h) / 2.0f;
+          float _x = width / 2.0f * 0.5f;//0.61f;
+
 
           if(h < w)
           {
-            float available_width = h * GOLDEN_RATIO;
+            float available_width = h * GOLDEN_RATIO;//1.8f;//GOLDEN_RATIO;
             if(available_width > width) available_width = width;
             _x = (width - available_width) / 2.0f;
             _w = (available_width - ((float) (button_count - 1) * spacing)) / (float) button_count;
@@ -1184,17 +1183,19 @@ int main(int argc, char * argv[])
             _x = 0;//width/2.0f - w/2.0f;
             float available_width = width;
             spacing = 1;
-            _w = (available_width - (5.0f * spacing)) / 6.0f;
+            _w = (available_width - ((float) (button_count - 1) * spacing)) / (float) button_count;
             _h = _w;
           }
 
+          float _y = (height - hh) + ((hh - _h) / 2.0f);
+          float half_spacing = spacing * 0.5f;
 
           //Randomize State Button.
           NVGcolor color_black = nvgRGB(0, 0, 0);
           NVGcolor color_white = nvgRGB(255, 255, 255);
           NVGcolor * dice_bg_color = &color_white;
           NVGcolor * dice_fg_color = &color_black;
-          if(point_in_rect(mouse.x, mouse.y, _x - (spacing / 2.0f), _y, _w + spacing, _w))
+          if(point_in_rect(mouse.x, mouse.y, _x - spacing, _y, _w + spacing + half_spacing, _w))
           {
             dice_bg_color = &color_black;
             dice_fg_color = &color_white;
@@ -1391,11 +1392,11 @@ int main(int argc, char * argv[])
             nvgFill(vg);
           }
 
+          _x = _x + _w + spacing;
           if(games[current_game]->growable)
           {
             //Increase shapes button.
-            _x = _x + _w + spacing;
-              dice_bg_color = &color_white;
+            dice_bg_color = &color_white;
             dice_fg_color = &color_black;
             if(point_in_rect(mouse.x, mouse.y, _x - (spacing / 2.0f), _y, _w + spacing, _w / 2.0f))
             {
