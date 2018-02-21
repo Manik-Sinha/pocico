@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 3-2\nEarly Access February 20, 2018";
+char build_number_string[] = "Build Number 3-3\nEarly Access February 20, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -105,7 +105,6 @@ void draw_diamondhexagon(NVGcontext * vg, Game * game, float x, float y, float w
 
 //Growable Triplets functions.
 void draw_growabletriplets(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
-static inline void triplets_transform(const Game * const game, const int position, int * const state, const int times);
 
 //Check if two colors are the same.
 static inline bool same_color(SDL_Color c1, SDL_Color c2);
@@ -191,75 +190,8 @@ static inline bool matching(
 //Randomize the left and right states of a game.
 static void randomize(Game * game)
 {
-  int old_left_state[game->number_of_states];
-  int old_right_state[game->number_of_states];
-  for(int i = 0; i < game->number_of_states; i++)
-  {
-    old_left_state[i] = game->left_state[i];
-    old_right_state[i] = game->right_state[i];
-  }
-
-  bool won = matching(game->left_state, game->right_state, game->number_of_states);
-
-  while(true)
-  {
-    //Randomize the left state, and
-    //set right state to be exactly left state.
-    for(int i = 0; i < game->number_of_states; i++)
-    {
-      game->left_state[i] = rand() % game->mod;
-      game->right_state[i] = game->left_state[i];
-    }
-
-    //Randomize the right state by randomly applying the move_matrix on it.
-    for(int i = 0; i < game->number_of_states; i++)
-    {
-      int times = rand() % game->number_of_states;
-      transform(
-        game,
-        i,
-        game->right_state,
-        times
-      );
-    }
-
-    //If the player won, then we are done if left and right states aren't the same.
-    if(won)
-    {
-      if(!matching(game->left_state, game->right_state, game->number_of_states))
-      {
-        return;
-      }
-    }
-    else
-    {//However, if the player hasn't won, then we are more picky.
-      //First, the left and right states have to be different,
-      if(!matching(game->left_state, game->right_state, game->number_of_states))
-      {
-        //and then, either the left state has to be different
-        //than what it was before randomizing, or the right has to be different
-        //than what it was before randomizing. This ensures that when we randomize,
-        //there is a visible change. Otherwise there is a possibility that
-        //exactly the same state as before randomizing occurs again.
-        if( (!matching(game->left_state, old_left_state, game->number_of_states)) ||
-            (!matching(game->right_state, old_right_state, game->number_of_states)) )
-        {
-          return;
-        }
-      }
-    }
-  }
-}
-
-//Special randomization function to randomize the left and right states
-//for games that are like triplets.
-static void triplets_randomize(Game * game)
-{
   int number_of_states = game->number_of_states;
-  if(game->growable)
-  {
-    number_of_states = game->growable_data.number_of_states;
-  }
+  if(game->growable) number_of_states = game->growable_data.number_of_states;
 
   int old_left_state[number_of_states];
   int old_right_state[number_of_states];
@@ -281,16 +213,11 @@ static void triplets_randomize(Game * game)
       game->right_state[i] = game->left_state[i];
     }
 
-    //Randomize the right state by randomly transforming it.
+    //Randomize the right state by applying the transform function on it.
     for(int i = 0; i < number_of_states; i++)
     {
       int times = rand() % number_of_states;
-      triplets_transform(
-        game,
-        i,
-        game->right_state,
-        times
-      );
+      game->transform(game, i, game->right_state, times);
     }
 
     //If the player won, then we are done if left and right states aren't the same.
@@ -554,7 +481,7 @@ Game game_growabletriplets = {
   NULL, //move_matrix
   standard_init,
   &draw_growabletriplets,
-  triplets_randomize,
+  randomize,
   triplets_transform,
   true, //growable
   //growable_data
