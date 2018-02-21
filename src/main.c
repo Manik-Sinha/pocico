@@ -3689,7 +3689,7 @@ void draw_all_but_one(NVGcontext * vg, Game * game, float x, float y, float widt
   }
   float spacing = side_length * percent;
 
-  static Vertex ov[16];
+  static Vertex ov[ALL_BUT_ONE_MAX];
 
   x = (x + width / 2.0f) - (available_length * 0.5f);
   y = y + (height - available_length) / 2.0f;
