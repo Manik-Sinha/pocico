@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 3-3\nEarly Access February 20, 2018";
+char build_number_string[] = "Build Number 3-4\nEarly Access February 20, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -339,7 +339,7 @@ const int game_04_ammann_beenker_move_matrix[] = {
   5, 5, 7, 19, 20, 21,   //20
   5, 7, 9, 20, 21, 22,   //21
   5, 9, 11, 21, 22, 23,  //22
-  5, 11, 13, 16, 22, 23 //23
+  5, 11, 13, 16, 22, 23  //23
 };
 
 int game_05_trianglehexagon_left_state[6];
@@ -540,8 +540,8 @@ int main(int argc, char * argv[])
     "pocico",
     SDL_WINDOWPOS_CENTERED,
     SDL_WINDOWPOS_CENTERED,
-    DEFAULT_WIDTH,//312,//960,
-    DEFAULT_HEIGHT,//250,//540,
+    DEFAULT_WIDTH,
+    DEFAULT_HEIGHT,
     SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI// | SDL_WINDOW_FULLSCREEN_DESKTOP
   );
 
@@ -629,8 +629,8 @@ int main(int argc, char * argv[])
   SDL_Point mouse = {0, 0};
 
   //The current width and height of the window.
-  int width = DEFAULT_WIDTH;//312;//960;
-  int height = DEFAULT_HEIGHT;//250;//540;
+  int width = DEFAULT_WIDTH;
+  int height = DEFAULT_HEIGHT;
 
   for(int i = 0; i < GAME_COUNT; i++)
   {
@@ -984,33 +984,11 @@ int main(int argc, char * argv[])
         nvgBeginPath(vg);
         nvgRoundedRect(vg, bounds_x, bounds_y, bounds_width, bounds_height, font_size * 0.1f);
         nvgStrokeWidth(vg, font_size * 0.25f);
-        /*nvgStrokePaint(vg,
-          nvgLinearGradient(
-            vg,
-            bounds_x,
-            bounds_y,
-            bounds_x + bounds_width,
-            bounds_y + bounds_height,
-            nvgRGB(colors[0].r, colors[0].g, colors[0].b),
-            nvgRGB(colors[5].r, colors[5].g, colors[5].b)
-          )
-        );*/
         nvgStrokeColor(vg, nvgRGB(0, 0, 0));
         nvgStroke(vg);
 
         if(point_in_rect(mouse.x, mouse.y, bounds_x, bounds_y, bounds_width, bounds_height))
         {
-          /*nvgFillPaint(vg,
-            nvgLinearGradient(
-              vg,
-              bounds_x,
-              bounds_y,
-              bounds_x + bounds_width,
-              bounds_y + bounds_height,
-              nvgRGB(colors[0].r, colors[0].g, colors[0].b),
-              nvgRGB(colors[5].r, colors[5].g, colors[5].b)
-            )
-          );*/
           nvgFillColor(vg, nvgRGB(0, 0, 0));
           nvgFill(vg);
 
@@ -1222,13 +1200,6 @@ int main(int argc, char * argv[])
           }
 
           {
-            /*float radius_percent = 0.125f;
-            float radius = radius_percent * _w;
-            float cx = _x + _w / 2.0f;
-            float cy = _y + _h / 2.0f;*/
-
-
-
             int number_of_colors = games[current_game]->mod;
             float height_of_color = _w / (float) number_of_colors;
             int last_color = number_of_colors - 1;
@@ -1561,9 +1532,6 @@ int main(int argc, char * argv[])
             nvgFillColor(vg, *dice_fg_color);
             nvgFill(vg);
           }
-
-
-
           /*for(int i = 1; i < button_count; i++)
           {
 
@@ -1661,7 +1629,6 @@ void draw_triforce(NVGcontext * vg, Game * game, float x, float y, float width, 
   int * inner_state = game->left_state;
   float percent = 0.05f;
   bool enable_stroke = true;
-  //if(percent < 0.0f) percent = 0.01f;
 
   const float cos30 = 0.86602540378f;
   const float sin30 = 0.5f;
@@ -1732,43 +1699,6 @@ void draw_triforce(NVGcontext * vg, Game * game, float x, float y, float width, 
     iv[1][2].x = small_x + small_half_a;
     iv[1][2].y = small_y + small_h;
   }
-/*
-  //Draw outer triangle.
-  nvgBeginPath(vg);
-  nvgMoveTo(vg, x, y);
-  nvgLineTo(vg, x - half_a, y + h);
-  nvgLineTo(vg, x + half_a, y + h);
-  nvgClosePath(vg);
-  {
-    SDL_Color color = colors[outer_state[1]];
-    nvgFillColor(vg, nvgRGB(color.r, color.g, color.b));
-  }
-  nvgFill(vg);
-
-  //Draw inner triangle.
-  //if(draw_inner_triangles)
-  {
-    float small_x = x;
-    float small_y = (y + (2.0f * h / 3.0f)) - (2.0f * small_h / 3.0f);
-
-    nvgBeginPath(vg);
-    nvgMoveTo(vg, small_x, small_y);
-    nvgLineTo(vg, small_x - small_half_a, small_y + small_h);
-    nvgLineTo(vg, small_x + small_half_a, small_y + small_h);
-    nvgClosePath(vg);
-    {
-      SDL_Color color = colors[inner_state[1]];
-      nvgFillColor(vg, nvgRGB(color.r, color.g, color.b));
-    }
-    nvgFill(vg);
-    if(enable_stroke && !same_color(colors[outer_state[1]], colors[inner_state[1]]))
-    {
-      nvgStrokeColor(vg, nvgRGB(255, 255, 255));
-      nvgStrokeWidth(vg, stroke_width);
-      nvgStroke(vg);
-    }
-  }
-  */
 
   //Draw middle triangles.
   x = x - half_a;
@@ -1791,44 +1721,7 @@ void draw_triforce(NVGcontext * vg, Game * game, float x, float y, float width, 
     iv[0][2].x = small_x + small_a;
     iv[0][2].y = small_y;
   }
-/*
-  //Draw outer triangle.
-  nvgBeginPath(vg);
-  nvgMoveTo(vg, x, y);
-  nvgLineTo(vg, x + half_a, y + h);
-  nvgLineTo(vg, x + a, y);
-  nvgClosePath(vg);
-  {
-    SDL_Color color = colors[outer_state[0]];
-    nvgFillColor(vg, nvgRGB(color.r, color.g, color.b));
-  }
-  nvgFill(vg);
 
-  //Draw inner triangle.
-  //if(draw_inner_triangles)
-  {
-    float small_x = x + half_a - small_half_a;
-    float small_y = (y + (h / 3.0f)) - (small_h / 3.0f);
-
-    nvgBeginPath(vg);
-    nvgMoveTo(vg, small_x, small_y);
-    nvgLineTo(vg, small_x + small_half_a, small_y + small_h);
-    nvgLineTo(vg, small_x + small_a, small_y);
-    nvgClosePath(vg);
-    {
-      SDL_Color color = colors[inner_state[0]];
-      nvgFillColor(vg, nvgRGB(color.r, color.g, color.b));
-    }
-    nvgFill(vg);
-    if(enable_stroke && !same_color(colors[outer_state[0]], colors[inner_state[0]]))
-    {
-      nvgStrokeColor(vg, nvgRGB(255, 255, 255));
-      nvgStrokeWidth(vg, stroke_width);
-      nvgStroke(vg);
-    }
-
-  }
-*/
   //Draw left triangles.
   float third_h = 1.0f / 3.0f * h;
   float center = y + third_h;
@@ -1855,43 +1748,6 @@ void draw_triforce(NVGcontext * vg, Game * game, float x, float y, float width, 
     iv[2][2].y = small_y - small_h;
   }
 
-/*
-  //Draw outer triangle.
-  nvgBeginPath(vg);
-  nvgMoveTo(vg, x, y);
-  nvgLineTo(vg, x + a, y);
-  nvgLineTo(vg, x + half_a, y - h);
-  nvgClosePath(vg);
-  {
-    SDL_Color color = colors[outer_state[2]];
-    nvgFillColor(vg, nvgRGB(color.r, color.g, color.b));
-  }
-  nvgFill(vg);
-
-  //Draw inner triangle.
-  //if(draw_inner_triangles)
-  {
-    float small_x = x + half_a - small_half_a;
-    float small_y = (y - (h / 3.0f)) + (small_h / 3.0f);
-
-    nvgBeginPath(vg);
-    nvgMoveTo(vg, small_x, small_y);
-    nvgLineTo(vg, small_x + small_a, small_y);
-    nvgLineTo(vg, small_x + small_half_a, small_y - small_h);
-    nvgClosePath(vg);
-    {
-      SDL_Color color = colors[inner_state[2]];
-      nvgFillColor(vg, nvgRGB(color.r, color.g, color.b));
-    }
-    nvgFill(vg);
-    if(enable_stroke && !same_color(colors[outer_state[2]], colors[inner_state[2]]))
-    {
-      nvgStrokeColor(vg, nvgRGB(255, 255, 255));
-      nvgStrokeWidth(vg, stroke_width);
-      nvgStroke(vg);
-    }
-  }
-*/
   //Draw right triangles.
   x = x + 2 * cos30 * hypotenuse;
 
@@ -1913,43 +1769,6 @@ void draw_triforce(NVGcontext * vg, Game * game, float x, float y, float width, 
     iv[3][2].y = small_y;
   }
 
-/*
-  //Draw outer triangle.
-  nvgBeginPath(vg);
-  nvgMoveTo(vg, x, y);
-  nvgLineTo(vg, x - half_a, y - h);
-  nvgLineTo(vg, x - a, y);
-  nvgClosePath(vg);
-  {
-    SDL_Color color = colors[outer_state[3]];
-    nvgFillColor(vg, nvgRGB(color.r, color.g, color.b));
-  }
-  nvgFill(vg);
-
-  //Draw inner triangle.
-  //if(draw_inner_triangles)
-  {
-    float small_x = x - half_a + small_half_a;
-    float small_y = (y - (h / 3.0f)) + (small_h / 3.0f);
-
-    nvgBeginPath(vg);
-    nvgMoveTo(vg, small_x, small_y);
-    nvgLineTo(vg, small_x - small_half_a, small_y - small_h);
-    nvgLineTo(vg, small_x - small_a, small_y);
-    nvgClosePath(vg);
-    {
-      SDL_Color color = colors[inner_state[3]];
-      nvgFillColor(vg, nvgRGB(color.r, color.g, color.b));
-    }
-    nvgFill(vg);
-    if(enable_stroke && !same_color(colors[outer_state[3]], colors[inner_state[3]]))
-    {
-      nvgStrokeColor(vg, nvgRGB(255, 255, 255));
-      nvgStrokeWidth(vg, stroke_width);
-      nvgStroke(vg);
-    }
-  }
-*/
   if(mouse_button_down)
   {
     for(int i = 0; i < 4; i++)
@@ -1999,10 +1818,6 @@ void draw_triforce(NVGcontext * vg, Game * game, float x, float y, float width, 
   }
 }
 
-void update_foursquare(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors)
-{
-
-}
 void draw_foursquare(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision)
 {
   *collision = false;
@@ -2102,10 +1917,6 @@ void draw_foursquare(NVGcontext * vg, Game * game, float x, float y, float width
 
 }
 
-void update_squarediamond(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors)
-{
-
-}
 void draw_squarediamond(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision)
 {
   *collision = false;
@@ -2238,8 +2049,6 @@ void draw_squarediamond(NVGcontext * vg, Game * game, float x, float y, float wi
   float triangle_offset = triangle_offset_height / sqrt(2);
   const float sincos45 = 0.70710678118f - 0.08f;
   float triangle_length = small_triangle_height / sincos45;
-
-
 
   float xs[5];
   float ys[5];
@@ -2676,9 +2485,6 @@ void draw_ammann_beenker(NVGcontext * vg, Game * game, float x, float y, float w
     x = width / 2.0f - (a * (1.0f + 0.5f * SQRT2));
     y = y + a * SQRT2 * 0.5f;
   }
-  //a = height / (4.0f * SQRT2 + 2.0f);
-
-
 
   float a_sqrt2 = a * SQRT2;
   float half_a_sqrt2 = a_sqrt2 * 0.5f;
@@ -2692,8 +2498,6 @@ void draw_ammann_beenker(NVGcontext * vg, Game * game, float x, float y, float w
   float offset = (a - sa) / 2.0f;
   float offset_sqrt2 = (a_sqrt2 - sa_sqrt2) / 2.0f;
 
-  //const float cos15 = 0.96592582628f;
-  //const float sin15 = 0.2588190451f;
   const float cos30 = 0.86602540378f;
   const float sin30 = 0.5f;
 
@@ -2706,9 +2510,6 @@ void draw_ammann_beenker(NVGcontext * vg, Game * game, float x, float y, float w
     iv[i].x = 0.0f;
     iv[i].y = 0.0f;
   }
-
-  //x = x + half_a_sqrt2;
-  //y = y + half_a_sqrt2;
 
   //0
   ov[0].x = x;
@@ -2761,21 +2562,6 @@ void draw_ammann_beenker(NVGcontext * vg, Game * game, float x, float y, float w
   ov[11].x = ov[3].x;
   ov[11].y = ov[3].y;
 
-  /*{
-    float length = 2 * cos30 * a;
-    float small_length = 2 * cos30 * sa;
-    float remaining_length = (length - small_length) / 2.0f;
-    float new_offset_x = remaining_length * cos30;
-    float new_offset_y = remaining_length * sin30;
-    iv[10].x = ov[10].x + new_offset_x;
-    iv[10].y = ov[10].y - new_offset_y;
-    iv[11].x = iv[10].x + sa;
-    iv[11].y = iv[10].y;
-    iv[8].x = ov[8].x - new_offset_x;
-    iv[8].y = ov[8].y + new_offset_y;
-    iv[9].x = iv[8].x - sa;
-    iv[9].y = iv[8].y;
-  }*/
   {
     float x8_10 = ((ov[8].x - ov[10].x) * 0.15f);
     float y8_10 = ((ov[10].y - ov[8].y) * 0.15f);
@@ -2940,7 +2726,6 @@ void draw_ammann_beenker(NVGcontext * vg, Game * game, float x, float y, float w
   iv[38].y = iv[36].y;
   iv[39].x = iv[37].x;
   iv[39].y = iv[36].y + half_sa_sqrt2;
-
 
   //10
   ov[40].x = ov[36].x;
