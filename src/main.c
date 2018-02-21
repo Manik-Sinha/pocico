@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 3-4\nEarly Access February 20, 2018";
+char build_number_string[] = "Build Number 3-5\nEarly Access February 20, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -734,7 +734,7 @@ int main(int argc, char * argv[])
     //A flag checking if the escape key was pressed.
     bool escape_pressed = false;
 
-    bool print_screen_pressed = false;
+    //bool print_screen_pressed = false;
     //Gather input.
     //Handle events while they are on the queue.
     while(SDL_PollEvent(&event))
@@ -863,7 +863,7 @@ int main(int argc, char * argv[])
 
       float play_button_x = 0.0f;
       float play_button_y = 0.0f;
-      float play_button_bounds_width = 0.0f;
+      //float play_button_bounds_width = 0.0f;
       float play_button_bounds_height = 0.0f;
       //Play Button.
       {
@@ -897,7 +897,7 @@ int main(int argc, char * argv[])
         bounds_y = bounds_y - bounds_height * bounds_percent_y * 0.5f;
         bounds_height = bounds_height + bounds_height * bounds_percent_y;
 
-        play_button_bounds_width = bounds_width;
+        //play_button_bounds_width = bounds_width;
         play_button_bounds_height = bounds_height;
 
         nvgBeginPath(vg);
@@ -1724,7 +1724,7 @@ void draw_triforce(NVGcontext * vg, Game * game, float x, float y, float width, 
 
   //Draw left triangles.
   float third_h = 1.0f / 3.0f * h;
-  float center = y + third_h;
+  //float center = y + third_h;
   float hypotenuse = h + s + third_h;
 
   x = (x + half_a) - (cos30 * hypotenuse);
@@ -1841,8 +1841,6 @@ void draw_foursquare(NVGcontext * vg, Game * game, float x, float y, float width
   float side_length = max_length / (2.0f + spacing_percent);
   float rounded_length = side_length * 0.1f;
   float spacing_length = side_length * spacing_percent;
-
-  float original_x = x;
 
   float percent_small_square = 0.78f;
   float small_side_length = side_length * percent_small_square;
@@ -2498,8 +2496,8 @@ void draw_ammann_beenker(NVGcontext * vg, Game * game, float x, float y, float w
   float offset = (a - sa) / 2.0f;
   float offset_sqrt2 = (a_sqrt2 - sa_sqrt2) / 2.0f;
 
-  const float cos30 = 0.86602540378f;
-  const float sin30 = 0.5f;
+  //const float cos30 = 0.86602540378f;
+  //const float sin30 = 0.5f;
 
   //All polygons have four vertices.
   static Vertex ov[96];
@@ -3444,7 +3442,6 @@ void draw_diamondhexagon(NVGcontext * vg, Game * game, float x, float y, float w
   {
     float x_0_2 = (ov[i][0].x - ov[i][2].x) * percent;
     float y_0_2 = (ov[i][0].y - ov[i][2].y) * percent;
-    float x_1_3 = (ov[i][1].x - ov[i][3].x) * percent;
     float y_3_1 = (ov[i][3].y - ov[i][1].y) * percent;
 
     iv[i][0].x = ov[i][0].x - x_0_2;
