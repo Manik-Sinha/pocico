@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 3-1\nEarly Access February 20, 2018";
+char build_number_string[] = "Build Number 3-2\nEarly Access February 20, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -80,6 +80,7 @@ typedef struct Game {
   void (*init) (struct Game*);
   void (*draw) (NVGcontext * vg, struct Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
   void (*randomize) (struct Game*);
+  void (*transform) (const struct Game * const game, const int position, int * const state, const int times);
   const bool growable;
   Growable growable_data;
 } Game;
@@ -104,7 +105,7 @@ void draw_diamondhexagon(NVGcontext * vg, Game * game, float x, float y, float w
 
 //Growable Triplets functions.
 void draw_growabletriplets(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
-static inline void triplets_transform(const int position, int * const state, const int number_of_states, const int mod, const int times);
+static inline void triplets_transform(const Game * const game, const int position, int * const state, const int times);
 
 //Check if two colors are the same.
 static inline bool same_color(SDL_Color c1, SDL_Color c2);
@@ -133,32 +134,31 @@ enum GAMESTATE {MAIN_MENU, PLAYING};
 //clicked on.
 static inline void
 transform(
+  const Game * const game,
   const int position,
   int * const state,
-  const int * const move_matrix,
-  const int * const move_matrix_index,
-  const int mod,
   const int times
 )
 {
-  int index = move_matrix_index[position];
-  int number_of_states_to_modify = move_matrix[index];
+  int index = game->move_matrix_index[position];
+  int number_of_states_to_modify = game->move_matrix[index];
   int first_state = index + 1;
   for(int i = first_state; i < (first_state + number_of_states_to_modify); i++)
   {
-    state[move_matrix[i]] = (state[move_matrix[i]] + times) % mod;
+    state[game->move_matrix[i]] = (state[game->move_matrix[i]] + times) % game->mod;
   }
 }
 
 static inline void triplets_transform(
+  const Game * const game,
   const int position,
   int * const state,
-  const int number_of_states,
-  const int mod,
   const int times
 )
 {
   //Warning: no error checking in this function.
+  int number_of_states = game->number_of_states;
+  if(game->growable) number_of_states = game->growable_data.number_of_states;
   int left = position - 1;
   if(left < 0)
   {
@@ -166,9 +166,9 @@ static inline void triplets_transform(
   }
   int center = position;
   int right = (position + 1) % number_of_states;
-  state[left] = (state[left] + times) % mod;
-  state[center] = (state[center] + times) % mod;
-  state[right] = (state[right] + times) % mod;
+  state[left] = (state[left] + times) % game->mod;
+  state[center] = (state[center] + times) % game->mod;
+  state[right] = (state[right] + times) % game->mod;
 }
 
 //Check whether two states match or not.
@@ -216,11 +216,9 @@ static void randomize(Game * game)
     {
       int times = rand() % game->number_of_states;
       transform(
+        game,
         i,
         game->right_state,
-        game->move_matrix,
-        game->move_matrix_index,
-        game->mod,
         times
       );
     }
@@ -288,10 +286,9 @@ static void triplets_randomize(Game * game)
     {
       int times = rand() % number_of_states;
       triplets_transform(
+        game,
         i,
         game->right_state,
-        number_of_states,
-        game->mod,
         times
       );
     }
@@ -463,6 +460,7 @@ Game game_triforce = {
   standard_init,
   draw_triforce,
   randomize,
+  transform,
   false, //growable
   {} //growable_data
 };
@@ -477,6 +475,7 @@ Game game_foursquare = {
   standard_init,
   draw_foursquare,
   randomize,
+  transform,
   false, //growable
   {} //growable_data
 };
@@ -492,6 +491,7 @@ Game game_squarediamond = {
   standard_init,
   draw_squarediamond,
   randomize,
+  transform,
   false, //growable
   {} //growable_data
 };
@@ -507,6 +507,7 @@ Game game_ammann_beenker = {
   standard_init,
   draw_ammann_beenker,
   randomize,
+  transform,
   false, //growable
   {} //growable_data
 };
@@ -522,6 +523,7 @@ Game game_trianglehexagon = {
   standard_init,
   draw_trianglehexagon,
   randomize,
+  transform,
   false, //growable
   {} //growable_data
 };
@@ -537,6 +539,7 @@ Game game_diamondhexagon = {
   standard_init,
   draw_diamondhexagon,
   randomize,
+  transform,
   false, //growable
   {} //growable_data
 };
@@ -552,6 +555,7 @@ Game game_growabletriplets = {
   standard_init,
   &draw_growabletriplets,
   triplets_randomize,
+  triplets_transform,
   true, //growable
   //growable_data
   {
@@ -2025,14 +2029,7 @@ void draw_triforce(NVGcontext * vg, Game * game, float x, float y, float width, 
     {
       if(point_in_triangle(mouse.x, mouse.y, ov[i][0].x, ov[i][0].y, ov[i][1].x, ov[i][1].y, ov[i][2].x, ov[i][2].y))
       {
-        transform(
-          i,
-          outer_state,
-          game->move_matrix,
-          game->move_matrix_index,
-          game->mod,
-          1
-        );
+        game->transform(game, i, outer_state, 1);
         *collision = true;
       }
     }
@@ -2146,14 +2143,7 @@ void draw_foursquare(NVGcontext * vg, Game * game, float x, float y, float width
     {
       if(point_in_square(mouse.x, mouse.y, xs[i], ys[i], side_length))
       {
-        transform(
-          i,
-          outer_state,
-          game->move_matrix,
-          game->move_matrix_index,
-          game->mod,
-          1
-        );
+        game->transform(game, i, outer_state, 1);
         *collision = true;
       }
     }
@@ -2642,14 +2632,7 @@ void draw_squarediamond(NVGcontext * vg, Game * game, float x, float y, float wi
         Vertex * ov = &outer_vertices[indices[i]];
         if(point_in_square(mouse.x, mouse.y, ov->x, ov->y, side_length))
         {
-          transform(
-            i,
-            outer_state,
-            game->move_matrix,
-            game->move_matrix_index,
-            game->mod,
-            1
-          );
+          game->transform(game, i, outer_state, 1);
           *collision = true;
         }
       }
@@ -2661,14 +2644,7 @@ void draw_squarediamond(NVGcontext * vg, Game * game, float x, float y, float wi
 
         if(point_in_triangle(mouse.x, mouse.y, ov0->x, ov0->y, ov1->x, ov1->y, ov2->x, ov2->y))
         {
-          transform(
-            i,
-            outer_state,
-            game->move_matrix,
-            game->move_matrix_index,
-            game->mod,
-            1
-          );
+          game->transform(game, i, outer_state, 1);
           *collision = true;
         }
       }
@@ -3346,14 +3322,7 @@ void draw_ammann_beenker(NVGcontext * vg, Game * game, float x, float y, float w
       int i3 = i2 + 1;
       if(point_in_quad(mouse.x, mouse.y, ov[i0].x, ov[i0].y, ov[i1].x, ov[i1].y, ov[i2].x, ov[i2].y, ov[i3].x, ov[i3].y))
       {
-        transform(
-          i,
-          outer_state,
-          game->move_matrix,
-          game->move_matrix_index,
-          game->mod,
-          1
-        );
+        game->transform(game, i, outer_state, 1);
         *collision = true;
       }
     }
@@ -3533,14 +3502,7 @@ void draw_trianglehexagon(NVGcontext * vg, Game * game, float x, float y, float 
       int v2 = v1 + 1;
       if(point_in_triangle(mouse.x, mouse.y, ov[v0].x, ov[v0].y, ov[v1].x, ov[v1].y, ov[v2].x, ov[v2].y))
       {
-        transform(
-          i,
-          outer_state,
-          game->move_matrix,
-          game->move_matrix_index,
-          game->mod,
-          1
-        );
+        game->transform(game, i, outer_state, 1);
         *collision = true;
       }
     }
@@ -3790,14 +3752,7 @@ void draw_diamondhexagon(NVGcontext * vg, Game * game, float x, float y, float w
     {
       if(point_in_quad(mouse.x, mouse.y, ov[i][0].x, ov[i][0].y, ov[i][1].x, ov[i][1].y, ov[i][2].x, ov[i][2].y, ov[i][3].x, ov[i][3].y))
       {
-        transform(
-          i,
-          outer_state,
-          game->move_matrix,
-          game->move_matrix_index,
-          game->mod,
-          1
-        );
+        game->transform(game, i, outer_state, 1);
         *collision = true;
       }
     }
@@ -3891,7 +3846,7 @@ void draw_growabletriplets(NVGcontext * vg, Game * game, float x, float y, float
 
     if(mouse_button_down && point_in_triangle(mouse.x, mouse.y, center_x, center_y, ov[i][0].x, ov[i][0].y, ov[i][1].x, ov[i][1].y))
     {
-      triplets_transform(i, outer_state, number_of_states, game->mod, 1);
+      game->transform(game, i, outer_state, 1);
       *collision = true;
     }
     angle = angle + theta;
