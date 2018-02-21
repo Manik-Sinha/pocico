@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 3-5\nEarly Access February 20, 2018";
+char build_number_string[] = "Build Number 3-6\nEarly Access February 21, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -106,6 +106,9 @@ void draw_diamondhexagon(NVGcontext * vg, Game * game, float x, float y, float w
 //Growable Triplets functions.
 void draw_growabletriplets(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
 
+//All But One functions.
+void draw_all_but_one(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
+
 //Check if two colors are the same.
 static inline bool same_color(SDL_Color c1, SDL_Color c2);
 
@@ -169,6 +172,26 @@ static inline void triplets_transform(
   state[center] = (state[center] + times) % game->mod;
   state[right] = (state[right] + times) % game->mod;
 }
+
+static inline void all_but_one_transform(
+  const Game * const game,
+  const int position,
+  int * const state,
+  const int times
+)
+{
+  //Warning: no error checking in this function.
+  int number_of_states = game->number_of_states;
+  if(game->growable) number_of_states = game->growable_data.number_of_states;
+  for(int i = 0; i < number_of_states; i++)
+  {
+    if(i != position)
+    {
+      state[i] = (state[i] + times) % game->mod;
+    }
+  }
+}
+
 
 //Check whether two states match or not.
 static inline bool matching(
@@ -372,9 +395,13 @@ const int game_06_diamondhexagon_move_matrix[] = {
   3, 9, 10, 11,       //10
   5, 0, 1, 9, 10, 11, //11
 };
+#define GROWABLE_TRIPLETS_MAX 16
+int game_07_growabletriplets_left_state[GROWABLE_TRIPLETS_MAX];
+int game_07_growabletriplets_right_state[GROWABLE_TRIPLETS_MAX];
 
-int game_07_growabletriplets_left_state[16];
-int game_07_growabletriplets_right_state[16];
+#define ALL_BUT_ONE_MAX 25
+int game_08_all_but_one_left_state[ALL_BUT_ONE_MAX];
+int game_08_all_but_one_right_state[ALL_BUT_ONE_MAX];
 
 Game game_triforce = {
   1, //uid
@@ -473,7 +500,7 @@ Game game_diamondhexagon = {
 
 Game game_growabletriplets = {
   7, //uid
-  24, //number of states
+  5, //number of states
   game_07_growabletriplets_left_state,
   game_07_growabletriplets_right_state,
   2, //mod
@@ -488,16 +515,38 @@ Game game_growabletriplets = {
   {
     4, //min_number_of_states
     5, //number_of_states
-    16 //max_number_of_states
+    GROWABLE_TRIPLETS_MAX //max_number_of_states : 16
   }
 };
 
-#define GAME_COUNT 7
+Game game_all_but_one = {
+  8, //uid
+  6, //number of states
+  game_08_all_but_one_left_state,
+  game_08_all_but_one_right_state,
+  2, //mod
+  NULL, //move matrix index
+  NULL, //move_matrix
+  standard_init,
+  &draw_all_but_one,
+  randomize,
+  all_but_one_transform,
+  true, //growable
+  //growable_data
+  {
+    2, //min_number_of_states
+    6, //number_of_states
+    ALL_BUT_ONE_MAX //max_number_of_states : 25
+  }
+};
+
+#define GAME_COUNT 8
 Game * games[GAME_COUNT] = {
   &game_triforce,
   &game_foursquare,
   &game_trianglehexagon,
   &game_growabletriplets,
+  &game_all_but_one,
   &game_diamondhexagon,
   &game_squarediamond,
   &game_ammann_beenker,
@@ -3592,6 +3641,222 @@ void draw_growabletriplets(NVGcontext * vg, Game * game, float x, float y, float
   }
 
 }
+
+void draw_all_but_one(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision)
+{
+  *collision = false;
+  int * outer_state = game->right_state;
+  int * inner_state = game->left_state;
+
+  float available_length = 0.0f;
+
+  if(height < width)
+  {
+    available_length = height;
+  }
+  else
+  {
+    available_length = width - 2;
+  }
+
+  //2 x 2 : 4
+  //3 x 3 : 9
+  //4 x 4 : 16
+  //5 x 5 : 25
+  int number_of_states = game->growable_data.number_of_states;
+  float percent = 0.125f;
+  float side_length = 0.0f;
+  {
+    int n = 1;
+    if(number_of_states <= 4)
+    {
+      n = 2;
+    }
+    else if(number_of_states <= 9)
+    {
+      n = 3;
+    }
+    else if(number_of_states <= 16)
+    {
+      n = 4;
+    }
+    else if(number_of_states <= 25)
+    {
+      n = 5;
+    }
+    side_length = available_length / (n + (n - 1.0f) * percent);
+  }
+  float spacing = side_length * percent;
+
+  static Vertex ov[16];
+
+  x = (x + width / 2.0f) - (available_length * 0.5f);
+  y = y + (height - available_length) / 2.0f;
+  float xx = x;
+  float yy = y;
+
+  if(number_of_states <= 4)
+  {
+    for(int i = 0; i < number_of_states; i++)
+    {
+      ov[i].x = xx;
+      ov[i].y = yy;
+
+      xx = xx + side_length + spacing;
+      if(i == 1)
+      {
+        xx = x;
+        yy = yy + side_length + spacing;
+      }
+    }
+  }
+  else if(number_of_states <= 9)
+  {
+    if(number_of_states <= 6)
+    {
+      x = (x + available_length / 2.0f) - (side_length + spacing);
+      xx = x;
+    }
+    for(int i = 0; i < number_of_states; i++)
+    {
+      ov[i].x = xx;
+      ov[i].y = yy;
+
+      if(i < 5)
+      {
+        if(i % 2 == 0)
+        {
+          xx = xx + side_length + spacing;
+        }
+        else
+        {
+          xx = x;
+          yy = yy + side_length + spacing;
+        }
+      }
+      else if(i == 5)
+      {
+        xx = xx + side_length + spacing;
+        yy = y;
+      }
+      else
+      {
+        yy = yy + side_length + spacing;
+      }
+    }
+  }
+  else if(number_of_states <= 16)
+  {
+    if(number_of_states <= 12)
+    {
+      x = (x + available_length / 2.0f) - ((side_length + spacing) * 1.5f);
+      xx = x;
+    }
+    for(int i = 0; i < number_of_states; i++)
+    {
+      ov[i].x = xx;
+      ov[i].y = yy;
+
+      if(i < 11)
+      {
+        if(i % 3 == 2)
+        {
+          xx = x;
+          yy = yy + side_length + spacing;
+        }
+        else
+        {
+          xx = xx + side_length + spacing;
+        }
+      }
+      else if(i == 11)
+      {
+        xx = xx + side_length + spacing;
+        yy = y;
+      }
+      else
+      {
+        yy = yy + side_length + spacing;
+      }
+    }
+  }
+  else if(number_of_states <= 25)
+  {
+    if(number_of_states <= 20)
+    {
+      x = (x + available_length / 2.0f) - ((side_length + spacing) * 2.0f);
+      xx = x;
+    }
+    for(int i = 0; i < number_of_states; i++)
+    {
+      ov[i].x = xx;
+      ov[i].y = yy;
+
+      if(i < 19)
+      {
+        if(i % 4 == 3)
+        {
+          xx = x;
+          yy = yy + side_length + spacing;
+        }
+        else
+        {
+          xx = xx + side_length + spacing;
+        }
+      }
+      else if(i == 19)
+      {
+        xx = xx + side_length + spacing;
+        yy = y;
+      }
+      else
+      {
+        yy = yy + side_length + spacing;
+      }
+    }
+  }
+
+  //Check for collisions.
+  if(mouse_button_down)
+  {
+    for(int i = 0; i < number_of_states; i++)
+    {
+      if(point_in_square(mouse.x, mouse.y, ov[i].x, ov[i].y, side_length))
+      {
+        game->transform(game, i, outer_state, 1);
+        *collision = true;
+      }
+    }
+  }
+  float small_side_length = side_length * 0.70f;
+  float offset = (side_length - small_side_length) * 0.5f;
+  float stroke_width = side_length * 0.025f;
+  NVGcolor stroke_color = nvgRGB(255, 255, 255);
+  for(int i = 0; i < number_of_states; i++)
+  {
+    nvgBeginPath(vg);
+    nvgRoundedRect(vg, ov[i].x, ov[i].y, side_length, side_length, side_length * 0.1f);
+    nvgClosePath(vg);
+    SDL_Color outer_color = colors[outer_state[i]];
+    nvgFillColor(vg, nvgRGB(outer_color.r, outer_color.g, outer_color.b));
+    nvgFill(vg);
+
+    SDL_Color inner_color = colors[inner_state[i]];
+    if(!same_color(inner_color, outer_color))
+    {
+      nvgBeginPath(vg);
+      nvgRoundedRect(vg, ov[i].x + offset, ov[i].y + offset, small_side_length , small_side_length, small_side_length * 0.1f);
+      nvgClosePath(vg);
+      nvgFillColor(vg, nvgRGB(inner_color.r, inner_color.g, inner_color.b));
+      nvgFill(vg);
+      nvgStrokeColor(vg, stroke_color);
+      nvgStrokeWidth(vg, stroke_width);
+      nvgStroke(vg);
+    }
+  }
+
+}
+
 
 static inline bool same_color(SDL_Color c1, SDL_Color c2)
 {
