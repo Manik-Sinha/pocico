@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 4\nEarly Access February 21, 2018";
+char build_number_string[] = "Build Number 5\nEarly Access February 26, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -109,6 +109,9 @@ void draw_growabletriplets(NVGcontext * vg, Game * game, float x, float y, float
 //All But One functions.
 void draw_all_but_one(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
 
+//Sun game functions.
+void draw_sun(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
+
 //Check if two colors are the same.
 static inline bool same_color(SDL_Color c1, SDL_Color c2);
 
@@ -171,6 +174,39 @@ static inline void triplets_transform(
   state[left] = (state[left] + times) % game->mod;
   state[center] = (state[center] + times) % game->mod;
   state[right] = (state[right] + times) % game->mod;
+}
+
+static inline void sun_transform(
+  const Game * const game,
+  const int position,
+  int * const state,
+  const int times
+)
+{
+  //Warning: no error checking in this function.
+  int number_of_states = game->number_of_states;
+  if(game->growable) number_of_states = game->growable_data.number_of_states;
+
+  if(position == 0)
+  {
+    for(int i = 0; i < number_of_states; i++)
+    {
+      state[i] = (state[i] + times) % game->mod;
+    }
+  }
+  else
+  {
+    int left = position - 1;
+    if(left == 0) left = number_of_states - 1;
+    int center = position;
+    int right = position + 1;
+    if(right == number_of_states) right = 1;
+
+    state[left] = (state[left] + times) % game->mod;
+    state[center] = (state[center] + times) % game->mod;
+    state[right] = (state[right] + times) % game->mod;
+    state[0] = (state[0] + times) % game->mod;
+  }
 }
 
 static inline void all_but_one_transform(
@@ -403,6 +439,10 @@ int game_07_growabletriplets_right_state[GROWABLE_TRIPLETS_MAX];
 int game_08_all_but_one_left_state[ALL_BUT_ONE_MAX];
 int game_08_all_but_one_right_state[ALL_BUT_ONE_MAX];
 
+#define SUN_MAX 17
+int game_09_sun_left_state[SUN_MAX];
+int game_09_sun_right_state[SUN_MAX];
+
 Game game_triforce = {
   1, //uid
   4, //number of states
@@ -540,13 +580,35 @@ Game game_all_but_one = {
   }
 };
 
-#define GAME_COUNT 8
+Game game_sun = {
+  9, //uid
+  11, //number of states
+  game_09_sun_left_state,
+  game_09_sun_right_state,
+  2, //mod
+  NULL, //move matrix index
+  NULL, //move_matrix
+  standard_init,
+  &draw_sun,
+  randomize,
+  sun_transform,
+  true, //growable
+  //growable_data
+  {
+    5, //min_number_of_states
+    11, //number_of_states
+    SUN_MAX //max_number_of_states : 17
+  }
+};
+
+#define GAME_COUNT 9
 Game * games[GAME_COUNT] = {
   &game_triforce,
   &game_foursquare,
   &game_trianglehexagon,
   &game_growabletriplets,
   &game_all_but_one,
+  &game_sun,
   &game_diamondhexagon,
   &game_squarediamond,
   &game_ammann_beenker,
@@ -3577,8 +3639,8 @@ void draw_growabletriplets(NVGcontext * vg, Game * game, float x, float y, float
   double theta = 2.0 * M_PI / (double) number_of_states;
   double half_theta = theta / 2.0;
 
-  static Vertex ov[24][2];
-  static Vertex iv[24];
+  static Vertex ov[GROWABLE_TRIPLETS_MAX][2];
+  static Vertex iv[GROWABLE_TRIPLETS_MAX];
 
   double angle = 0;
   double inner_radius = radius * GOLDEN_RATIO * 0.25;//radius * cos(half_theta) * INVERSE_GOLDEN_RATIO;
@@ -3856,6 +3918,207 @@ void draw_all_but_one(NVGcontext * vg, Game * game, float x, float y, float widt
     }
   }
 
+}
+
+void draw_sun(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision)
+{
+  *collision = false;
+  int * outer_state = game->right_state;
+  int * inner_state = game->left_state;
+
+  int number_of_states = game->growable_data.number_of_states;
+  float center_x = x + width / 2.0f;
+  float center_y = y + height / 2.0f;
+  //double radius = 0;
+  double distance_from_center = 0;
+
+  if(height < width)
+  {
+    //radius = (double) height / 2.0;
+    distance_from_center = (double) height / 2.0;
+  }
+  else
+  {
+    //radius = (double) width / 2.0;
+    distance_from_center = (double) width / 2.0;
+  }
+
+  double theta = 2.0 * M_PI / (double) (number_of_states - 1);
+  double half_theta = theta / 2.0;
+
+  double tan_half_theta = tan(half_theta);
+
+  double a = (2.0 * distance_from_center * tan_half_theta) / (1.0 + tan_half_theta * sqrt(3));
+  double radius = a * 0.5 / sin(half_theta);
+
+  static Vertex ov[SUN_MAX][3];
+  static Vertex iv[SUN_MAX][3];
+
+  double angle = -half_theta;
+  //double inner_radius = radius * GOLDEN_RATIO * 0.25;//radius * cos(half_theta) * INVERSE_GOLDEN_RATIO;
+  //double radius_offset = radius * cos(half_theta) * INVERSE_GOLDEN_RATIO;//radius * 0.65;
+  float stroke_width = radius * 0.025;
+  //float radius_circle = radius_offset * sin(half_theta) * 0.5;
+  const double HALF_PI = M_PI * 0.5;
+  double triangle_base_length = 0.0;
+  double triangle_height = 0.0;
+  float center_distance = 0.0;
+  //double center_inner_triangle = 0.0;
+  for(int i = 1; i < number_of_states; i++)
+  {
+    ov[i][0].x = center_x + (radius * cos(HALF_PI + angle));
+    ov[i][0].y = center_y - (radius * sin(HALF_PI + angle));
+    ov[i][2].x = center_x + (radius * cos(HALF_PI + (angle + theta)));
+    ov[i][2].y = center_y - (radius * sin(HALF_PI + (angle + theta)));
+    if(i == 1)
+    {
+      float xs = ov[i][0].x - ov[i][2].x;
+      float ys = ov[i][0].y - ov[i][2].y;
+      center_distance = center_y - ov[i][0].y;
+      triangle_base_length = ov[i][2].x - ov[i][0].x;
+      triangle_height = sqrt(3) * 0.5 * triangle_base_length; //equilateral triangle height.
+
+      stroke_width = sqrt(xs * xs + ys * ys) * 0.025f;
+    }
+    ov[i][1].x = center_x + (distance_from_center * cos(HALF_PI + (angle + half_theta)));
+    ov[i][1].y = center_y - (distance_from_center * sin(HALF_PI + (angle + half_theta)));
+
+
+    //iv[i].x = center_x + ((center_distance - (triangle_height / 3.0)) * cos(HALF_PI + (angle + half_theta)));
+    //iv[i].y = center_y - ((center_distance - (triangle_height / 3.0)) * sin(HALF_PI + (angle + half_theta)));
+
+    //double center_inner_triangle_x = center_x + (distance_center_inner_triangle * cos(HALF_PI + (angle + half_theta)));
+    //double center_inner_triangle_y = center_y - (distance_center_inner_triangle * sin(HALF_PI + (angle + half_theta)));
+    double center_inner_triangle_x = center_x + ((center_distance - (triangle_height / 3.0)) * cos(HALF_PI + (angle + half_theta)));
+    double center_inner_triangle_y = center_y - ((center_distance - (triangle_height / 3.0)) * sin(HALF_PI + (angle + half_theta)));
+    Vertex v0;
+    Vertex v1;
+    Vertex v2;
+    v0.x = center_inner_triangle_x - ov[i][0].x;
+    v0.y = center_inner_triangle_y - ov[i][0].y;
+    v1.x = center_inner_triangle_x - ov[i][1].x;
+    v1.y = center_inner_triangle_y - ov[i][1].y;
+    v2.x = center_inner_triangle_x - ov[i][2].x;
+    v2.y = center_inner_triangle_y - ov[i][2].y;
+    float p = INVERSE_GOLDEN_RATIO;
+    iv[i][0].x = ov[i][0].x + (v0.x * p);
+    iv[i][0].y = ov[i][0].y + (v0.y * p);
+    iv[i][1].x = ov[i][1].x + (v1.x * p);
+    iv[i][1].y = ov[i][1].y + (v1.y * p);
+    iv[i][2].x = ov[i][2].x + (v2.x * p);
+    iv[i][2].y = ov[i][2].y + (v2.y * p);
+
+    if(mouse_button_down && point_in_triangle(mouse.x, mouse.y, ov[i][0].x, ov[i][0].y, ov[i][1].x, ov[i][1].y, ov[i][2].x, ov[i][2].y))
+    {
+      game->transform(game, i, outer_state, 1);
+      *collision = true;
+    }
+    angle = angle + theta;
+  }
+
+  float circle_radius = center_distance * GOLDEN_RATIO * 0.5;
+  if(mouse_button_down)
+  {
+    float xs = center_x - mouse.x;
+    float ys = center_y - mouse.y;
+    //float distance = sqrt(xs * xs + ys * ys);
+    //if(!(distance > circle_radius))
+    //{
+    //  game->transform(game, 0, outer_state, 1);
+    //  *collision = true;
+    //}
+    float distance = xs * xs + ys * ys;
+    if(!(distance > (circle_radius * circle_radius)))
+    {
+      game->transform(game, 0, outer_state, 1);
+      *collision = true;
+    }
+  }
+
+  NVGcolor stroke_color = nvgRGB(255, 255, 255);
+
+  for(int i = 0; i < number_of_states; i++)
+  {
+    SDL_Color outer_color = colors[outer_state[i]];
+    SDL_Color inner_color = colors[inner_state[i]];
+    if(i == 0)
+    {
+      nvgBeginPath(vg);
+      nvgCircle(vg, center_x, center_y, circle_radius);
+      nvgClosePath(vg);
+      nvgFillColor(vg, nvgRGB(outer_color.r, outer_color.g, outer_color.b));
+      nvgFill(vg);
+
+      if(!same_color(inner_color, outer_color))
+      {
+        nvgBeginPath(vg);
+        nvgCircle(vg, center_x, center_y, circle_radius * INVERSE_GOLDEN_RATIO);
+        nvgClosePath(vg);
+        nvgFillColor(vg, nvgRGB(inner_color.r, inner_color.g, inner_color.b));
+        nvgFill(vg);
+        nvgStrokeColor(vg, stroke_color);
+        nvgStrokeWidth(vg, stroke_width);
+        nvgStroke(vg);
+      }
+    }
+    else
+    {
+      nvgLineJoin(vg, NVG_ROUND);
+      nvgBeginPath(vg);
+      nvgMoveTo(vg, ov[i][0].x, ov[i][0].y);
+      nvgLineTo(vg, ov[i][1].x, ov[i][1].y);
+      nvgLineTo(vg, ov[i][2].x, ov[i][2].y);
+      nvgClosePath(vg);
+      nvgFillColor(vg, nvgRGB(outer_color.r, outer_color.g, outer_color.b));
+      nvgFill(vg);
+      //nvgStrokeColor(vg, stroke_color);
+      //nvgStrokeWidth(vg, stroke_width);
+      //nvgStroke(vg);
+
+      //*
+      if(!same_color(inner_color, outer_color))
+      {
+        nvgBeginPath(vg);
+        //nvgCircle(vg, iv[i][0].x, iv[i][0].y, a/8.0);
+        nvgMoveTo(vg, iv[i][0].x, iv[i][0].y);
+        nvgLineTo(vg, iv[i][1].x, iv[i][1].y);
+        nvgLineTo(vg, iv[i][2].x, iv[i][2].y);
+        nvgClosePath(vg);
+        nvgFillColor(vg, nvgRGB(inner_color.r, inner_color.g, inner_color.b));
+        nvgFill(vg);
+        nvgStrokeColor(vg, stroke_color);
+        nvgStrokeWidth(vg, stroke_width);
+        nvgStroke(vg);
+      }
+      //*/
+    }
+  }
+
+/*
+  //Guide lines.
+  angle = -half_theta;
+
+  nvgBeginPath(vg);
+  nvgMoveTo(vg, center_x, center_y);
+  nvgLineTo(vg, center_x + (radius * cos((M_PI * 0.5) + angle)), center_y - (radius * sin((M_PI * 0.5) + angle)));
+  nvgClosePath(vg);
+  nvgStrokeColor(vg, nvgRGB(255,0,0));
+  nvgStroke(vg);
+
+  nvgBeginPath(vg);
+  nvgMoveTo(vg, center_x, center_y);
+  nvgLineTo(vg, center_x + (radius * cos((M_PI * 0.5) + (angle + half_theta))), center_y - (radius * sin((M_PI * 0.5) + (angle + half_theta))));
+  nvgClosePath(vg);
+  nvgStrokeColor(vg, nvgRGB(0,255,0));
+  nvgStroke(vg);
+
+  nvgBeginPath(vg);
+  nvgMoveTo(vg, center_x, center_y);
+  nvgLineTo(vg, center_x + (radius * cos((M_PI * 0.5) + (angle + theta))), center_y - (radius * sin((M_PI * 0.5) + (angle + theta))));
+  nvgClosePath(vg);
+  nvgStrokeColor(vg, nvgRGB(0,0,255));
+  nvgStroke(vg);
+*/
 }
 
 
