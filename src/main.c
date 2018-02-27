@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 5\nEarly Access February 26, 2018";
+char build_number_string[] = "Build Number 5-1\nEarly Access February 26, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -1391,6 +1391,7 @@ int main(int argc, char * argv[])
             }
           }
 
+          if(games[current_game]->mod < 9)
           {
             nvgBeginPath(vg);
             nvgRect(vg, _x, _y, _w, _w / 2.0f + stroke_offset);
@@ -1435,6 +1436,7 @@ int main(int argc, char * argv[])
             }
           }
 
+          if(games[current_game]->mod > 2)
           {
             nvgBeginPath(vg);
             nvgRect(vg, _x, _y + _w / 2.0f, _w, _w / 2.0f);
@@ -1476,6 +1478,7 @@ int main(int argc, char * argv[])
               }
             }
 
+            if(games[current_game]->growable_data.number_of_states < games[current_game]->growable_data.max_number_of_states)
             {
               nvgBeginPath(vg);
               nvgRect(vg, _x, _y, _w, _w / 2.0f + stroke_offset);
@@ -1516,6 +1519,7 @@ int main(int argc, char * argv[])
               }
             }
 
+            if(games[current_game]->growable_data.number_of_states > games[current_game]->growable_data.min_number_of_states)
             {
               nvgBeginPath(vg);
               nvgRect(vg, _x, _y + _w / 2.0f, _w, _w / 2.0f);
