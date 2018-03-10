@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 5-1\nEarly Access February 26, 2018";
+char build_number_string[] = "Build Number 5-2\nEarly Access March 10, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -275,7 +275,7 @@ static void randomize(Game * game)
     //Randomize the right state by applying the transform function on it.
     for(int i = 0; i < number_of_states; i++)
     {
-      int times = rand() % number_of_states;
+      int times = rand() % game->mod;
       game->transform(game, i, game->right_state, times);
     }
 
