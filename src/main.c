@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 5-2\nEarly Access March 10, 2018";
+char build_number_string[] = "Build Number 6\nEarly Access March 10, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -83,6 +83,7 @@ typedef struct Game {
   void (*transform) (const struct Game * const game, const int position, int * const state, const int times);
   const bool growable;
   Growable growable_data;
+  void * special;
 } Game;
 
 //Triforce functions.
@@ -111,6 +112,360 @@ void draw_all_but_one(NVGcontext * vg, Game * game, float x, float y, float widt
 
 //Sun game functions.
 void draw_sun(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
+
+//Polyomino functions and data.
+void draw_polyomino(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
+typedef struct Polyomino_Point {
+  int row;
+  int col;
+} Polyomino_Point;
+enum {POLYOMINO_EMPTY = -2, POLYOMINO_POTENTIAL = -1, POLYOMINO_FILLED = 0};
+#define POLYOMINO_MAX 100 //The maximum size of the polyomino.
+typedef struct Polyomino {
+  //max rows = max cols = POLYOMINO_MAX * 2 - 1 = 199.
+  //max rows * max cols = 199 * 199 = 39601
+  int left_grid[39601];
+  int right_grid[39601];
+  int size;
+  int rows;
+  int cols;
+  int clipped_rows;
+  int clipped_cols;
+  Polyomino_Point minimum;
+  Polyomino_Point maximum;
+  void (*transform) (const struct Game * const game, const int row, const int col, int * const state, const int times);
+} Polyomino;
+Polyomino game_10_polyomino;
+void generate_polyomino(Polyomino * polyomino)
+{
+  if(polyomino->size < 1 || polyomino->size > POLYOMINO_MAX) polyomino->size = 1;
+  polyomino->rows = polyomino->size * 2 - 1;
+  polyomino->cols = polyomino->rows;
+
+  int rows = polyomino->rows;
+  int cols = polyomino->cols;
+  int * grid = polyomino->left_grid;
+  int * right_grid = polyomino->right_grid;
+
+  int total_size = rows * cols;
+  for(int i = 0; i < total_size; i++)
+  {
+    grid[i] = POLYOMINO_EMPTY;
+    right_grid[i] = POLYOMINO_EMPTY;
+  }
+
+  int current_row = polyomino->size - 1;
+  int current_col = current_row;
+
+  static Polyomino_Point potential[400];
+  polyomino->minimum.row = current_row;
+  polyomino->minimum.col = current_col;
+  polyomino->maximum.row = current_row;
+  polyomino->maximum.col = current_col;
+
+  int filled_count = 1;
+  int potential_count = 4;
+
+  //filled[0].row = current_row;
+  //filled[0].col = current_col;
+
+  //Up, Down, Left, Right.
+  potential[0].row = current_row - 1;
+  potential[0].col = current_col;
+  potential[1].row = current_row + 1;
+  potential[1].col = current_col;
+  potential[2].row = current_row;
+  potential[2].col = current_col - 1;
+  potential[3].row = current_row;
+  potential[3].col = current_col + 1;
+
+  grid[current_row * cols + current_col] = POLYOMINO_FILLED;
+  right_grid[current_row * cols + current_col] = POLYOMINO_FILLED;
+
+  for(int i = 0; i < potential_count; i++)
+  {
+    grid[potential[i].row * cols + potential[i].col] = POLYOMINO_POTENTIAL;
+    right_grid[potential[i].row * cols + potential[i].col] = POLYOMINO_POTENTIAL;
+  }
+
+  for(int i = 0; i < (polyomino->size - 1); i++)
+  {
+    //Pick a random potential block.
+    int next = rand() % potential_count;
+
+    //We found another filled block.
+    filled_count++;
+
+    //The coordinate of the next filled block.
+    int next_row = potential[next].row;
+    int next_col = potential[next].col;
+
+    //Fill the next filled block.
+    grid[next_row * cols + next_col] = POLYOMINO_FILLED;
+    right_grid[next_row * cols + next_col] = POLYOMINO_FILLED;
+
+    //Update bounding box if applicable.
+    //Minimum.
+    if(next_row < polyomino->minimum.row) polyomino->minimum.row = next_row;
+    if(next_col < polyomino->minimum.col) polyomino->minimum.col = next_col;
+    //Maximum
+    if(polyomino->maximum.row < next_row) polyomino->maximum.row = next_row;
+    if(polyomino->maximum.col < next_col) polyomino->maximum.col = next_col;
+
+    //The used potential block no longer exists, so we overwrite it with the
+    //last potential block. We now have one less potential block.
+    potential[next].row = potential[potential_count - 1].row;
+    potential[next].col = potential[potential_count - 1].col;
+    potential_count--;
+
+    //We need to add new potential blocks next to our new filled block.
+    //Up.
+    if((next_row - 1) >= 0)
+    {
+      int index = (next_row - 1) * cols + next_col;
+      if(grid[index] == POLYOMINO_EMPTY)
+      {
+        //Note that potential_count is used as the index to the last potential
+        //block since we are growing it by one.
+        potential[potential_count].row = next_row - 1;
+        potential[potential_count].col = next_col;
+        grid[index] = POLYOMINO_POTENTIAL;
+        right_grid[index] = POLYOMINO_POTENTIAL;
+        potential_count++;
+      }
+    }
+
+    //Down.
+    if((next_row + 1) < rows)
+    {
+      int index = (next_row + 1) * cols + next_col;
+      if(grid[index] == POLYOMINO_EMPTY)
+      {
+        //Note that potential_count is used as the index to the last potential
+        //block since we are growing it by one.
+        potential[potential_count].row = next_row + 1;
+        potential[potential_count].col = next_col;
+        grid[index] = POLYOMINO_POTENTIAL;
+        right_grid[index] = POLYOMINO_POTENTIAL;
+        potential_count++;
+      }
+    }
+
+    //Left.
+    if((next_col - 1) >= 0)
+    {
+      int index = (next_row) * cols + (next_col - 1);
+      if(grid[index] == POLYOMINO_EMPTY)
+      {
+        //Note that potential_count is used as the index to the last potential
+        //block since we are growing it by one.
+        potential[potential_count].row = next_row;
+        potential[potential_count].col = next_col - 1;
+        grid[index] = POLYOMINO_POTENTIAL;
+        right_grid[index] = POLYOMINO_POTENTIAL;
+        potential_count++;
+      }
+    }
+
+    //Right.
+    if((next_col + 1) < cols)
+    {
+      int index = (next_row) * cols + (next_col + 1);
+      if(grid[index] == POLYOMINO_EMPTY)
+      {
+        //Note that potential_count is used as the index to the last potential
+        //block since we are growing it by one.
+        potential[potential_count].row = next_row;
+        potential[potential_count].col = next_col + 1;
+        grid[index] = POLYOMINO_POTENTIAL;
+        right_grid[index] = POLYOMINO_POTENTIAL;
+        potential_count++;
+      }
+    }
+  }
+  polyomino->clipped_rows = (polyomino->maximum.row - polyomino->minimum.row) + 1;
+  polyomino->clipped_cols = (polyomino->maximum.col - polyomino->minimum.col) + 1;
+}
+static inline void polyomino_transform(
+  const Game * const game,
+  const int row,
+  const int col,
+  int * const state,
+  const int times
+)
+{
+  //Warning: not much error checking in this function.
+  Polyomino * p = game->special;
+  if(row < p->minimum.row || p->maximum.row < row || col < p->minimum.col || p->maximum.col < col)
+  {
+    //This should not happen. Maybe use an assert instead.
+    return;
+  }
+
+  //If the data at (col, row) is state data: 0, 1, 2, etc.
+  //and not POLYOMINO_EMPTY or POLYOMINO_POTENTIAL: -2 and -1,
+  //then we can transform.
+  int index = row * p->cols + col;
+  if(0 <= state[index])
+  {
+    //Center.
+    state[index] = (state[index] + times) % game->mod;
+
+    //Up.
+    if(p->minimum.row <= (row - 1))
+    {
+      index = (row - 1) * p->cols + col;
+      if(0 <= state[index])
+      {
+        state[index] = (state[index] + times) % game->mod;
+      }
+    }
+
+    //Down.
+    if((row + 1) <= p->maximum.row)
+    {
+      index = (row + 1) * p->cols + col;
+      if(0 <= state[index])
+      {
+        state[index] = (state[index] + times) % game->mod;
+      }
+    }
+
+    //Left.
+    if(p->minimum.col <= (col - 1))
+    {
+      index = row * p->cols + (col - 1);
+      if(0 <= state[index])
+      {
+        state[index] = (state[index] + times) % game->mod;
+      }
+    }
+
+    //Right.
+    if((col + 1) <= p->maximum.col)
+    {
+      index = row * p->cols + (col + 1);
+      if(0 <= state[index])
+      {
+        state[index] = (state[index] + times) % game->mod;
+      }
+    }
+  }
+}
+void polyomino_init(Game * game)
+{
+  Polyomino * p = game->special;
+  p->transform = polyomino_transform;
+  p->size = game->growable_data.number_of_states;
+  generate_polyomino(p);
+  game->randomize(game);
+}
+static inline bool matching_polyomino(const Game * const game, const int * const left_state, const int * const right_state)
+{
+  Polyomino * polyomino = game->special;
+  for(int r = polyomino->minimum.row; r <= polyomino->maximum.row; r++)
+  {
+    for(int c = polyomino->minimum.col; c <= polyomino->maximum.col; c++)
+    {
+      int index = r * polyomino->cols + c;
+      if(0 <= left_state[index] && 0 <= right_state[index])
+      {
+        if(left_state[index] != right_state[index])
+        {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+static void randomize_polyomino(Game * game)
+{
+  int number_of_states = game->number_of_states;
+  if(game->growable) number_of_states = game->growable_data.number_of_states;
+
+  //Since having an old state for polyomino will be a drag, let's just not worry
+  //about repeating an old state for this game.
+
+  //If you want to add that feature, then when building a polyomino you will
+  //need to make an integer array of size POLYOMINO_MAX, and each time a point
+  //is filled, store that state information into the integer array.
+
+  Polyomino * polyomino = game->special;
+
+  if(polyomino->size != number_of_states)
+  {
+    polyomino->size = number_of_states;
+    generate_polyomino(polyomino);
+  }
+
+  bool won = matching_polyomino(game, game->left_state, game->right_state);
+
+  int start_row = polyomino->minimum.row;
+  int end_row = polyomino->maximum.row;
+  int start_col = polyomino->minimum.col;
+  int end_col = polyomino->maximum.col;
+
+  while(true)
+  {
+    //Randomize the left state, and
+    //set right state to be exactly left state.
+    for(int r = start_row; r <= end_row; r++)
+    {
+      for(int c = start_col; c <= end_col ; c++)
+      {
+        int index = r * polyomino->cols + c;
+        if(0 <= game->left_state[index]) //If this point holds state data.
+        {
+          game->left_state[index] = rand() % game->mod;
+          game->right_state[index] = game->left_state[index];
+        }
+      }
+    }
+
+    //Randomize the right state by applying the transform function on it.
+    for(int r = start_row; r <= end_row; r++)
+    {
+      for(int c = start_col; c <= end_col ; c++)
+      {
+        int index = r * polyomino->cols + c;
+        if(0 <= game->right_state[index]) //If this point holds state data.
+        {
+          int times = rand() % game->mod;
+          polyomino->transform(game, r, c, game->right_state, times);
+        }
+      }
+    }
+
+    //If the player won, then we are done if left and right states aren't the same.
+    if(won)
+    {
+      if(!matching_polyomino(game, game->left_state, game->right_state))
+      {
+        return;
+      }
+    }
+    else
+    {//However, if the player hasn't won, then we are more picky.
+      //First, the left and right states have to be different,
+      if(!matching_polyomino(game, game->left_state, game->right_state))
+      {
+        //Skip the following extra check and return:
+        //and then, either the left state has to be different
+        //than what it was before randomizing, or the right has to be different
+        //than what it was before randomizing. This ensures that when we randomize,
+        //there is a visible change. Otherwise there is a possibility that
+        //exactly the same state as before randomizing occurs again.
+        //if( (!matching(game->left_state, old_left_state, number_of_states)) ||
+        //    (!matching(game->right_state, old_right_state, number_of_states)) )
+        //{
+          return;
+        //}
+      }
+    }
+  }
+}
+
 
 //Check if two colors are the same.
 static inline bool same_color(SDL_Color c1, SDL_Color c2);
@@ -227,7 +582,6 @@ static inline void all_but_one_transform(
     }
   }
 }
-
 
 //Check whether two states match or not.
 static inline bool matching(
@@ -456,7 +810,8 @@ Game game_triforce = {
   randomize,
   transform,
   false, //growable
-  {} //growable_data
+  {}, //growable_data
+  NULL //special
 };
 Game game_foursquare = {
   2, //uid
@@ -471,7 +826,8 @@ Game game_foursquare = {
   randomize,
   transform,
   false, //growable
-  {} //growable_data
+  {}, //growable_data
+  NULL //special
 };
 
 Game game_squarediamond = {
@@ -487,7 +843,8 @@ Game game_squarediamond = {
   randomize,
   transform,
   false, //growable
-  {} //growable_data
+  {}, //growable_data
+  NULL //special
 };
 
 Game game_ammann_beenker = {
@@ -503,7 +860,8 @@ Game game_ammann_beenker = {
   randomize,
   transform,
   false, //growable
-  {} //growable_data
+  {}, //growable_data
+  NULL //special
 };
 
 Game game_trianglehexagon = {
@@ -519,7 +877,8 @@ Game game_trianglehexagon = {
   randomize,
   transform,
   false, //growable
-  {} //growable_data
+  {}, //growable_data
+  NULL //special
 };
 
 Game game_diamondhexagon = {
@@ -535,7 +894,8 @@ Game game_diamondhexagon = {
   randomize,
   transform,
   false, //growable
-  {} //growable_data
+  {}, //growable_data
+  NULL //special
 };
 
 Game game_growabletriplets = {
@@ -556,7 +916,8 @@ Game game_growabletriplets = {
     4, //min_number_of_states
     5, //number_of_states
     GROWABLE_TRIPLETS_MAX //max_number_of_states : 16
-  }
+  },
+  NULL //special
 };
 
 Game game_all_but_one = {
@@ -577,7 +938,8 @@ Game game_all_but_one = {
     2, //min_number_of_states
     6, //number_of_states
     ALL_BUT_ONE_MAX //max_number_of_states : 25
-  }
+  },
+  NULL //special
 };
 
 Game game_sun = {
@@ -598,10 +960,35 @@ Game game_sun = {
     5, //min_number_of_states
     11, //number_of_states
     SUN_MAX //max_number_of_states : 17
-  }
+  },
+  NULL //special
 };
 
-#define GAME_COUNT 9
+#define GAME_10_POLYOMINO_UID 10
+Game game_polyomino = {
+  GAME_10_POLYOMINO_UID, //uid: 10
+  12, //number of states
+  game_10_polyomino.left_grid,
+  game_10_polyomino.right_grid,
+  2, //mod
+  NULL, //move matrix index
+  NULL, //move_matrix
+  polyomino_init,
+  &draw_polyomino,
+  randomize_polyomino,
+  NULL, //transform (actual transform is in game_10_polyomino)
+  true, //growable
+  //growable_data
+  {
+    4, //min_number_of_states
+    12, //number_of_states
+    POLYOMINO_MAX //max_number_of_states : 100
+  },
+  &game_10_polyomino //special
+};
+
+
+#define GAME_COUNT 10
 Game * games[GAME_COUNT] = {
   &game_triforce,
   &game_foursquare,
@@ -612,6 +999,7 @@ Game * games[GAME_COUNT] = {
   &game_diamondhexagon,
   &game_squarediamond,
   &game_ammann_beenker,
+  &game_polyomino,
 };
 
 //#define TESTING_NEW_PUZZLE
@@ -1134,19 +1522,41 @@ int main(int argc, char * argv[])
         {
           number_of_states = games[current_game]->growable_data.number_of_states;
         }
-        if(matching(games[current_game]->left_state, games[current_game]->right_state, number_of_states))
+        if(games[current_game]->uid != GAME_10_POLYOMINO_UID)
         {
-          //If we just won, choose a random win message.
-          if(won_game == false)
+          //Normal games.
+          if(matching(games[current_game]->left_state, games[current_game]->right_state, number_of_states))
           {
-            current_win_message = win_messages[rand()%MAX_WIN_MESSAGES];
-          }
+            //If we just won, choose a random win message.
+            if(won_game == false)
+            {
+              current_win_message = win_messages[rand()%MAX_WIN_MESSAGES];
+            }
 
-          won_game = true;
+            won_game = true;
+          }
+          else
+          {
+            won_game = false;
+          }
         }
         else
         {
-          won_game = false;
+          //Polyomino game.
+          if(matching_polyomino(games[current_game], games[current_game]->left_state, games[current_game]->right_state))
+          {
+            //If we just won, choose a random win message.
+            if(won_game == false)
+            {
+              current_win_message = win_messages[rand()%MAX_WIN_MESSAGES];
+            }
+
+            won_game = true;
+          }
+          else
+          {
+            won_game = false;
+          }
         }
       }
 
@@ -4124,6 +4534,126 @@ void draw_sun(NVGcontext * vg, Game * game, float x, float y, float width, float
   nvgStroke(vg);
 */
 }
+
+void draw_polyomino(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision)
+{
+  *collision = false;
+  int * outer_state = game->right_state;
+  int * inner_state = game->left_state;
+
+  Polyomino * polyomino = game->special;
+
+  float side_length = 0.0f;
+  float spacing_percent = 0.05f;
+  float spacing = 0.0f;
+  float used_width = 0.0f;
+  float used_height = 0.0f;
+  //TODO: account for weird rectangular shapes.
+  if(height < width)
+  {
+    float n = (float) polyomino->clipped_rows;
+    side_length = height / (n + (n-1.0f) * spacing_percent);
+    spacing = side_length * spacing_percent;
+
+    used_width = ((side_length + spacing) * (float) (polyomino->clipped_cols - 1)) + side_length;
+    if(width < used_width)
+    {
+      n = (float) polyomino->clipped_cols;
+      side_length = width / (n + (n-1.0f) * spacing_percent);
+      spacing = side_length * spacing_percent;
+    }
+  }
+  else
+  {
+    float n = (float) polyomino->clipped_cols;
+    side_length = width / (n + (n-1.0f) * spacing_percent);
+    spacing = side_length * spacing_percent;
+
+    used_height = ((side_length + spacing) * (float) (polyomino->clipped_rows - 1)) + side_length;
+    if(height < used_height)
+    {
+      n = (float) polyomino->clipped_rows;
+      side_length = height / (n + (n-1.0f) * spacing_percent);
+      spacing = side_length * spacing_percent;
+    }
+  }
+
+  used_width = ((side_length + spacing) * (float) (polyomino->clipped_cols - 1)) + side_length;
+  used_height = ((side_length + spacing) * (float) (polyomino->clipped_rows - 1)) + side_length;
+
+  float small_side_length = side_length * 0.75f;
+  float offset = (side_length - small_side_length) / 2.0f;
+
+  float stroke_width = spacing * INVERSE_GOLDEN_RATIO;
+  NVGcolor stroke_color = nvgRGB(255, 255, 255);
+
+  x = x + (width - used_width) / 2.0f;
+  y = y + (height - used_height) / 2.0f;
+
+  float xx = x;
+  float yy = y;
+
+  if(mouse_button_down)
+  {
+    for(int r = polyomino->minimum.row; r <= polyomino->maximum.row; r++)
+    {
+      for(int c = polyomino->minimum.col; c <= polyomino->maximum.col; c++)
+      {
+        int index = r * polyomino->cols + c;
+        if(0 <= outer_state[index])
+        {
+          if(point_in_square(mouse.x, mouse.y, xx, yy, side_length))
+          {
+            polyomino_transform(game, r, c, outer_state, 1);
+            *collision = true;
+          }
+        }
+        xx = xx + side_length + spacing;
+      }
+      xx = x;
+      yy = yy + side_length + spacing;
+    }
+  }
+
+  xx = x;
+  yy = y;
+
+  for(int r = polyomino->minimum.row; r <= polyomino->maximum.row; r++)
+  {
+    for(int c = polyomino->minimum.col; c <= polyomino->maximum.col; c++)
+    {
+      int index = r * polyomino->cols + c;
+      if(0 <= outer_state[index])
+      {
+        SDL_Color outer_color = colors[outer_state[index]];
+        SDL_Color inner_color = colors[inner_state[index]];
+
+        nvgBeginPath(vg);
+        nvgRect(vg, xx, yy, side_length, side_length);
+        nvgClosePath(vg);
+        nvgFillColor(vg, nvgRGB(outer_color.r, outer_color.g, outer_color.b));
+        nvgFill(vg);
+
+        nvgBeginPath(vg);
+        nvgRect(vg, xx + offset, yy + offset, small_side_length, small_side_length);
+        nvgClosePath(vg);
+        nvgFillColor(vg, nvgRGB(inner_color.r, inner_color.g, inner_color.b));
+        nvgFill(vg);
+
+        if(!same_color(inner_color, outer_color))
+        {
+          nvgStrokeColor(vg, stroke_color);
+          nvgStrokeWidth(vg, stroke_width);
+          nvgStroke(vg);
+        }
+      }
+      xx = xx + side_length + spacing;
+    }
+    xx = x;
+    yy = yy + side_length + spacing;
+  }
+}
+
 
 
 static inline bool same_color(SDL_Color c1, SDL_Color c2)
