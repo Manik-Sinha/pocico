@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 6\nEarly Access March 10, 2018";
+char build_number_string[] = "Build Number 6-1\nEarly Access March 13, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -118,8 +118,8 @@ void draw_polyomino(NVGcontext * vg, Game * game, float x, float y, float width,
 typedef struct Polyomino_Point {
   int row;
   int col;
-} Polyomino_Point;
-enum {POLYOMINO_EMPTY = -2, POLYOMINO_POTENTIAL = -1, POLYOMINO_FILLED = 0};
+} Polyomino_Point, Polyiamond_Point;
+enum {POLYFORM_EMPTY = -2, POLYFORM_POTENTIAL = -1, POLYFORM_FILLED = 0};
 #define POLYOMINO_MAX 100 //The maximum size of the polyomino.
 typedef struct Polyomino {
   //max rows = max cols = POLYOMINO_MAX * 2 - 1 = 199.
@@ -150,8 +150,8 @@ void generate_polyomino(Polyomino * polyomino)
   int total_size = rows * cols;
   for(int i = 0; i < total_size; i++)
   {
-    grid[i] = POLYOMINO_EMPTY;
-    right_grid[i] = POLYOMINO_EMPTY;
+    grid[i] = POLYFORM_EMPTY;
+    right_grid[i] = POLYFORM_EMPTY;
   }
 
   int current_row = polyomino->size - 1;
@@ -179,13 +179,13 @@ void generate_polyomino(Polyomino * polyomino)
   potential[3].row = current_row;
   potential[3].col = current_col + 1;
 
-  grid[current_row * cols + current_col] = POLYOMINO_FILLED;
-  right_grid[current_row * cols + current_col] = POLYOMINO_FILLED;
+  grid[current_row * cols + current_col] = POLYFORM_FILLED;
+  right_grid[current_row * cols + current_col] = POLYFORM_FILLED;
 
   for(int i = 0; i < potential_count; i++)
   {
-    grid[potential[i].row * cols + potential[i].col] = POLYOMINO_POTENTIAL;
-    right_grid[potential[i].row * cols + potential[i].col] = POLYOMINO_POTENTIAL;
+    grid[potential[i].row * cols + potential[i].col] = POLYFORM_POTENTIAL;
+    right_grid[potential[i].row * cols + potential[i].col] = POLYFORM_POTENTIAL;
   }
 
   for(int i = 0; i < (polyomino->size - 1); i++)
@@ -201,8 +201,8 @@ void generate_polyomino(Polyomino * polyomino)
     int next_col = potential[next].col;
 
     //Fill the next filled block.
-    grid[next_row * cols + next_col] = POLYOMINO_FILLED;
-    right_grid[next_row * cols + next_col] = POLYOMINO_FILLED;
+    grid[next_row * cols + next_col] = POLYFORM_FILLED;
+    right_grid[next_row * cols + next_col] = POLYFORM_FILLED;
 
     //Update bounding box if applicable.
     //Minimum.
@@ -223,14 +223,14 @@ void generate_polyomino(Polyomino * polyomino)
     if((next_row - 1) >= 0)
     {
       int index = (next_row - 1) * cols + next_col;
-      if(grid[index] == POLYOMINO_EMPTY)
+      if(grid[index] == POLYFORM_EMPTY)
       {
         //Note that potential_count is used as the index to the last potential
         //block since we are growing it by one.
         potential[potential_count].row = next_row - 1;
         potential[potential_count].col = next_col;
-        grid[index] = POLYOMINO_POTENTIAL;
-        right_grid[index] = POLYOMINO_POTENTIAL;
+        grid[index] = POLYFORM_POTENTIAL;
+        right_grid[index] = POLYFORM_POTENTIAL;
         potential_count++;
       }
     }
@@ -239,14 +239,14 @@ void generate_polyomino(Polyomino * polyomino)
     if((next_row + 1) < rows)
     {
       int index = (next_row + 1) * cols + next_col;
-      if(grid[index] == POLYOMINO_EMPTY)
+      if(grid[index] == POLYFORM_EMPTY)
       {
         //Note that potential_count is used as the index to the last potential
         //block since we are growing it by one.
         potential[potential_count].row = next_row + 1;
         potential[potential_count].col = next_col;
-        grid[index] = POLYOMINO_POTENTIAL;
-        right_grid[index] = POLYOMINO_POTENTIAL;
+        grid[index] = POLYFORM_POTENTIAL;
+        right_grid[index] = POLYFORM_POTENTIAL;
         potential_count++;
       }
     }
@@ -255,14 +255,14 @@ void generate_polyomino(Polyomino * polyomino)
     if((next_col - 1) >= 0)
     {
       int index = (next_row) * cols + (next_col - 1);
-      if(grid[index] == POLYOMINO_EMPTY)
+      if(grid[index] == POLYFORM_EMPTY)
       {
         //Note that potential_count is used as the index to the last potential
         //block since we are growing it by one.
         potential[potential_count].row = next_row;
         potential[potential_count].col = next_col - 1;
-        grid[index] = POLYOMINO_POTENTIAL;
-        right_grid[index] = POLYOMINO_POTENTIAL;
+        grid[index] = POLYFORM_POTENTIAL;
+        right_grid[index] = POLYFORM_POTENTIAL;
         potential_count++;
       }
     }
@@ -271,14 +271,14 @@ void generate_polyomino(Polyomino * polyomino)
     if((next_col + 1) < cols)
     {
       int index = (next_row) * cols + (next_col + 1);
-      if(grid[index] == POLYOMINO_EMPTY)
+      if(grid[index] == POLYFORM_EMPTY)
       {
         //Note that potential_count is used as the index to the last potential
         //block since we are growing it by one.
         potential[potential_count].row = next_row;
         potential[potential_count].col = next_col + 1;
-        grid[index] = POLYOMINO_POTENTIAL;
-        right_grid[index] = POLYOMINO_POTENTIAL;
+        grid[index] = POLYFORM_POTENTIAL;
+        right_grid[index] = POLYFORM_POTENTIAL;
         potential_count++;
       }
     }
@@ -303,7 +303,7 @@ static inline void polyomino_transform(
   }
 
   //If the data at (col, row) is state data: 0, 1, 2, etc.
-  //and not POLYOMINO_EMPTY or POLYOMINO_POTENTIAL: -2 and -1,
+  //and not POLYFORM_EMPTY or POLYFORM_POTENTIAL: -2 and -1,
   //then we can transform.
   int index = row * p->cols + col;
   if(0 <= state[index])
