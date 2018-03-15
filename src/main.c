@@ -29,7 +29,7 @@ Official email: ManikSinha@protonmail.com
 #define NANOVG_GL2_IMPLEMENTATION
 #include "nanovg_gl.h"
 
-char build_number_string[] = "Build Number 6-1\nEarly Access March 13, 2018";
+char build_number_string[] = "Build Number 7\nEarly Access March 15, 2018";
 
 #define DEFAULT_WIDTH 1280
 #define DEFAULT_HEIGHT 720
@@ -449,6 +449,448 @@ static void randomize_polyomino(Game * game)
     {//However, if the player hasn't won, then we are more picky.
       //First, the left and right states have to be different,
       if(!matching_polyomino(game, game->left_state, game->right_state))
+      {
+        //Skip the following extra check and return:
+        //and then, either the left state has to be different
+        //than what it was before randomizing, or the right has to be different
+        //than what it was before randomizing. This ensures that when we randomize,
+        //there is a visible change. Otherwise there is a possibility that
+        //exactly the same state as before randomizing occurs again.
+        //if( (!matching(game->left_state, old_left_state, number_of_states)) ||
+        //    (!matching(game->right_state, old_right_state, number_of_states)) )
+        //{
+          return;
+        //}
+      }
+    }
+  }
+}
+
+//Polyiamond functions and data. Note we reuse some things from polyomino, so if
+//splitting into files take that into account.
+void draw_polyiamond(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision);
+#define POLYIAMOND_MAX 100 //The maximum size of the polyiamond.
+//100 rows * 199 cols = 19900.
+typedef struct Polyiamond {
+  int left_grid[19900];
+  int right_grid[19900];
+  int size;
+  int rows;
+  int cols;
+  int clipped_rows;
+  int clipped_cols;
+  Polyiamond_Point minimum;
+  Polyiamond_Point maximum;
+  bool first_triangle_facing; //Either POLYIAMOND_FACING_UP or POLYIAMOND_FACING_DOWN.
+  bool clipped_first_triangle_facing;
+  void (*transform) (const struct Game * const game, const int row, const int col, int * const state, const int times);
+} Polyiamond;
+Polyiamond game_11_polyiamond;
+const bool POLYIAMOND_FACING_UP = true;
+const bool POLYIAMOND_FACING_DOWN = false;
+//Return the direction a triangle is facing for the given (col, row).
+//Either POLYIAMOND_FACING_UP (true) or POLYIAMOND_FACING_DOWN (false).
+//Note that the facing of the top left triangle is required.
+//When using clipped rows and columns make sure to use
+//clipped_first_triangle_facing as the top left triangle facing.
+static inline bool polyiamond_facing(int row, int col, bool top_left_triangle_facing)
+{
+  //We can determine the direction a triangle is facing by knowing the direction
+  //of the top left triangle, which is in polyiamond->first_triangle_direction.
+  //If we know whether the row or column of the triangle we want to check is
+  //even or odd, then we can use this table to determine its direction.
+  //Row  Col  : Direction Facing
+  //Even Even : Same direction as first triangle.
+  //Even Odd  : Opposite.
+  //Odd  Odd  : Same.
+  //Odd  Even : Opposite.
+  bool facing;
+  if(row % 2 == 0)
+  {
+    if(col % 2 == 0)
+    {
+      facing = top_left_triangle_facing;
+    }
+    else
+    {
+      facing = !top_left_triangle_facing;
+    }
+  }
+  else
+  {
+    if(col % 2 == 1)
+    {
+      facing = top_left_triangle_facing;
+    }
+    else
+    {
+      facing = !top_left_triangle_facing;
+    }
+  }
+  return facing;
+}
+void generate_polyiamond(Polyiamond * polyiamond)
+{
+  if(polyiamond->size < 4 || polyiamond->size > POLYIAMOND_MAX) polyiamond->size = 4;
+  polyiamond->rows = polyiamond->size;
+  polyiamond->cols = polyiamond->size * 2 - 1;
+
+  if(polyiamond->size % 2 == 0) //Even.
+  {
+    if(polyiamond->size % 4 == 2)
+    {
+      polyiamond->first_triangle_facing = POLYIAMOND_FACING_DOWN;
+    }
+    else
+    {
+      polyiamond->first_triangle_facing = POLYIAMOND_FACING_UP;
+    }
+  }
+  else //Odd.
+  {
+    if(polyiamond->size % 4 == 3)
+    {
+      polyiamond->first_triangle_facing = POLYIAMOND_FACING_DOWN;
+    }
+    else
+    {
+      polyiamond->first_triangle_facing = POLYIAMOND_FACING_UP;
+    }
+  }
+
+  int rows = polyiamond->rows;
+  int cols = polyiamond->cols;
+  int * grid = polyiamond->left_grid;
+  int * right_grid = polyiamond->right_grid;
+
+  int total_size = rows * cols;
+  for(int i = 0; i < total_size; i++)
+  {
+    grid[i] = POLYFORM_EMPTY;
+    right_grid[i] = POLYFORM_EMPTY;
+  }
+
+  int current_row = (polyiamond->size - 1) / 2; //We use integer division.
+  int current_col = cols / 2; //Again integer division.
+
+  static Polyiamond_Point potential[300];
+  polyiamond->minimum.row = current_row;
+  polyiamond->minimum.col = current_col;
+  polyiamond->maximum.row = current_row;
+  polyiamond->maximum.col = current_col;
+
+  int filled_count = 1;
+  int potential_count = 3;
+
+  //From here on we assume polyiamond is of size >= 2.
+  //Left, Right, Down.
+  //Note: the starting triangle is always facing up because of how the rows and
+  //columns are defined. Therefore, we have a Down potential rather than an Up
+  //potential.
+  potential[0].row = current_row;
+  potential[0].col = current_col - 1;
+  potential[1].row = current_row;
+  potential[1].col = current_col + 1;
+  potential[2].row = current_row + 1;
+  potential[2].col = current_col;
+
+  grid[current_row * cols + current_col] = POLYFORM_FILLED;
+  right_grid[current_row * cols + current_col] = POLYFORM_FILLED;
+
+  for(int i = 0; i < potential_count; i++)
+  {
+    grid[potential[i].row * cols + potential[i].col] = POLYFORM_POTENTIAL;
+    right_grid[potential[i].row * cols + potential[i].col] = POLYFORM_POTENTIAL;
+  }
+
+  for(int i = 0; i < (polyiamond->size - 1); i++)
+  {
+    //Pick a random potential triangle.
+    int next = rand() % potential_count;
+
+    //We found another filled triangle.
+    filled_count++;
+
+    //The coordinate of the next filled triangle.
+    int next_row = potential[next].row;
+    int next_col = potential[next].col;
+
+    //Fill the next filled triangle.
+    grid[next_row * cols + next_col] = POLYFORM_FILLED;
+    right_grid[next_row * cols + next_col] = POLYFORM_FILLED;
+
+    //Update bounding box if applicable.
+    //Minimum.
+    if(next_row < polyiamond->minimum.row) polyiamond->minimum.row = next_row;
+    if(next_col < polyiamond->minimum.col) polyiamond->minimum.col = next_col;
+    //Maximum
+    if(polyiamond->maximum.row < next_row) polyiamond->maximum.row = next_row;
+    if(polyiamond->maximum.col < next_col) polyiamond->maximum.col = next_col;
+
+    //The used potential triangle no longer exists, so we overwrite it with the
+    //last potential triangle. We now have one less potential triangle.
+    potential[next].row = potential[potential_count - 1].row;
+    potential[next].col = potential[potential_count - 1].col;
+    potential_count--;
+
+    //We need to add new potential triangles, if applicable, for our filled
+    //triangle.
+
+    //Left
+    if((next_col - 1) >= 0)
+    {
+      int index = (next_row) * cols + (next_col - 1);
+      if(grid[index] == POLYFORM_EMPTY)
+      {
+        //Note that potential_count is used as the index to the last potential
+        //triangle since we are growing it by one.
+        potential[potential_count].row = next_row;
+        potential[potential_count].col = next_col - 1;
+        grid[index] = POLYFORM_POTENTIAL;
+        right_grid[index] = POLYFORM_POTENTIAL;
+        potential_count++;
+      }
+    }
+
+    //Right.
+    if((next_col + 1) < cols)
+    {
+      int index = (next_row) * cols + (next_col + 1);
+      if(grid[index] == POLYFORM_EMPTY)
+      {
+        //Note that potential_count is used as the index to the last potential
+        //triangle since we are growing it by one.
+        potential[potential_count].row = next_row;
+        potential[potential_count].col = next_col + 1;
+        grid[index] = POLYFORM_POTENTIAL;
+        right_grid[index] = POLYFORM_POTENTIAL;
+        potential_count++;
+      }
+    }
+
+    //Now we need to determine the direction the filled triangle is facing.
+    //If it's facing up, then we need to make the triangle below it a potential
+    //triangle. If it's facing down, then we need to make the triangle above it
+    //a potential trignale.
+
+    bool current_facing = polyiamond_facing(next_row, next_col, polyiamond->first_triangle_facing);
+
+    if(current_facing == POLYIAMOND_FACING_UP)
+    {
+      //Remember that if the newly filled triangle is facing up, we need to mark
+      //the triangle below as a potential triangle.
+      //Down.
+      if((next_row + 1) < rows)
+      {
+        int index = (next_row + 1) * cols + next_col;
+        if(grid[index] == POLYFORM_EMPTY)
+        {
+          //Note that potential_count is used as the index to the last potential
+          //block since we are growing it by one.
+          potential[potential_count].row = next_row + 1;
+          potential[potential_count].col = next_col;
+          grid[index] = POLYFORM_POTENTIAL;
+          right_grid[index] = POLYFORM_POTENTIAL;
+          potential_count++;
+        }
+      }
+    }
+    else
+    {
+      //Remember that if the triangle is facing down, we need to mark the
+      //triangle above as a potential triangle.
+      //Up.
+      if((next_row - 1) >= 0)
+      {
+        int index = (next_row - 1) * cols + next_col;
+        if(grid[index] == POLYFORM_EMPTY)
+        {
+          //Note that potential_count is used as the index to the last potential
+          //triangle since we are growing it by one.
+          potential[potential_count].row = next_row - 1;
+          potential[potential_count].col = next_col;
+          grid[index] = POLYFORM_POTENTIAL;
+          right_grid[index] = POLYFORM_POTENTIAL;
+          potential_count++;
+        }
+      }
+    }
+  }
+  polyiamond->clipped_rows = (polyiamond->maximum.row - polyiamond->minimum.row) + 1;
+  polyiamond->clipped_cols = (polyiamond->maximum.col - polyiamond->minimum.col) + 1;
+
+  int mrow = polyiamond->minimum.row;
+  int mcol = polyiamond->minimum.col;
+  int f = polyiamond->first_triangle_facing;
+  polyiamond->clipped_first_triangle_facing = polyiamond_facing(mrow, mcol, f);
+}
+static inline void polyiamond_transform(
+  const Game * const game,
+  const int row,
+  const int col,
+  int * const state,
+  const int times
+)
+{
+  //Warning: not much error checking in this function.
+  Polyiamond * p = game->special;
+  if(row < p->minimum.row || p->maximum.row < row || col < p->minimum.col || p->maximum.col < col)
+  {
+    //This should not happen. Maybe use an assert instead.
+    return;
+  }
+
+  //If the data at (col, row) is state data: 0, 1, 2, etc.
+  //and not POLYFORM_EMPTY or POLYFORM_POTENTIAL: -2 and -1,
+  //then we can transform.
+  int index = row * p->cols + col;
+  if(0 <= state[index])
+  {
+    //Center.
+    state[index] = (state[index] + times) % game->mod;
+
+    //Left.
+    if(p->minimum.col <= (col - 1))
+    {
+      index = row * p->cols + (col - 1);
+      if(0 <= state[index])
+      {
+        state[index] = (state[index] + times) % game->mod;
+      }
+    }
+
+    //Right.
+    if((col + 1) <= p->maximum.col)
+    {
+      index = row * p->cols + (col + 1);
+      if(0 <= state[index])
+      {
+        state[index] = (state[index] + times) % game->mod;
+      }
+    }
+
+    bool facing = polyiamond_facing(row, col, p->first_triangle_facing);
+    if(facing == POLYIAMOND_FACING_UP)
+    {
+      //Down.
+      //Change triangle below if possible.
+      if((row + 1) <= p->maximum.row)
+      {
+        index = (row + 1) * p->cols + col;
+        if(0 <= state[index])
+        {
+          state[index] = (state[index] + times) % game->mod;
+        }
+      }
+    }
+    else
+    {
+      //Up.
+      //Change triangle above if possible.
+      if(p->minimum.row <= (row - 1))
+      {
+        index = (row - 1) * p->cols + col;
+        if(0 <= state[index])
+        {
+          state[index] = (state[index] + times) % game->mod;
+        }
+      }
+    }
+  }
+}
+void polyiamond_init(Game * game)
+{
+  Polyiamond * p = game->special;
+  p->transform = polyiamond_transform;
+  p->size = game->growable_data.number_of_states;
+  generate_polyiamond(p);
+  game->randomize(game);
+}
+static inline bool matching_polyiamond(const Game * const game, const int * const left_state, const int * const right_state)
+{
+  Polyiamond * polyiamond = game->special;
+  for(int r = polyiamond->minimum.row; r <= polyiamond->maximum.row; r++)
+  {
+    for(int c = polyiamond->minimum.col; c <= polyiamond->maximum.col; c++)
+    {
+      int index = r * polyiamond->cols + c;
+      if(0 <= left_state[index] && 0 <= right_state[index])
+      {
+        if(left_state[index] != right_state[index])
+        {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+static void randomize_polyiamond(Game * game)
+{
+  int number_of_states = game->number_of_states;
+  if(game->growable) number_of_states = game->growable_data.number_of_states;
+
+  //Since having an old state for polyiamond will be a drag, let's just not worry
+  //about repeating an old state for this game.
+
+  Polyiamond * polyiamond = game->special;
+
+  if(polyiamond->size != number_of_states)
+  {
+    polyiamond->size = number_of_states;
+    generate_polyiamond(polyiamond);
+  }
+
+  bool won = matching_polyiamond(game, game->left_state, game->right_state);
+
+  int start_row = polyiamond->minimum.row;
+  int end_row = polyiamond->maximum.row;
+  int start_col = polyiamond->minimum.col;
+  int end_col = polyiamond->maximum.col;
+
+  while(true)
+  {
+    //Randomize the left state, and
+    //set right state to be exactly left state.
+    for(int r = start_row; r <= end_row; r++)
+    {
+      for(int c = start_col; c <= end_col ; c++)
+      {
+        int index = r * polyiamond->cols + c;
+        if(0 <= game->left_state[index]) //If this point holds state data.
+        {
+          game->left_state[index] = rand() % game->mod;
+          game->right_state[index] = game->left_state[index];
+        }
+      }
+    }
+
+    //Randomize the right state by applying the transform function on it.
+    for(int r = start_row; r <= end_row; r++)
+    {
+      for(int c = start_col; c <= end_col ; c++)
+      {
+        int index = r * polyiamond->cols + c;
+        if(0 <= game->right_state[index]) //If this point holds state data.
+        {
+          int times = rand() % game->mod;
+          polyiamond->transform(game, r, c, game->right_state, times);
+        }
+      }
+    }
+
+    //If the player won, then we are done if left and right states aren't the same.
+    if(won)
+    {
+      if(!matching_polyiamond(game, game->left_state, game->right_state))
+      {
+        return;
+      }
+    }
+    else
+    {//However, if the player hasn't won, then we are more picky.
+      //First, the left and right states have to be different,
+      if(!matching_polyiamond(game, game->left_state, game->right_state))
       {
         //Skip the following extra check and return:
         //and then, either the left state has to be different
@@ -987,8 +1429,31 @@ Game game_polyomino = {
   &game_10_polyomino //special
 };
 
+#define GAME_11_POLYIAMOND_UID 11
+Game game_polyiamond = {
+  GAME_11_POLYIAMOND_UID, //uid: 11
+  12, //number of states
+  game_11_polyiamond.left_grid,
+  game_11_polyiamond.right_grid,
+  2, //mod
+  NULL, //move matrix index
+  NULL, //move_matrix
+  polyiamond_init,
+  &draw_polyiamond,
+  randomize_polyiamond,
+  NULL, //transform (actual transform is in game_11_polyiamond)
+  true, //growable
+  //growable_data
+  {
+    4, //min_number_of_states
+    12, //number_of_states
+    POLYIAMOND_MAX //max_number_of_states : 100
+  },
+  &game_11_polyiamond //special
+};
 
-#define GAME_COUNT 10
+//*
+#define GAME_COUNT 11
 Game * games[GAME_COUNT] = {
   &game_triforce,
   &game_foursquare,
@@ -1000,6 +1465,7 @@ Game * games[GAME_COUNT] = {
   &game_squarediamond,
   &game_ammann_beenker,
   &game_polyomino,
+  &game_polyiamond,
 };
 
 //#define TESTING_NEW_PUZZLE
@@ -1516,47 +1982,42 @@ int main(int argc, char * argv[])
     }
     else if(gamestate == PLAYING)
     {
+      //Check if we won, and prepare win message if applicable.
       {
         int number_of_states = games[current_game]->number_of_states;
         if(games[current_game]->growable)
         {
           number_of_states = games[current_game]->growable_data.number_of_states;
         }
-        if(games[current_game]->uid != GAME_10_POLYOMINO_UID)
+        bool sides_match = false;
+        switch(games[current_game]->uid)
         {
-          //Normal games.
-          if(matching(games[current_game]->left_state, games[current_game]->right_state, number_of_states))
+          case GAME_10_POLYOMINO_UID:
+            //Polyomino game.
+            sides_match = matching_polyomino(games[current_game], games[current_game]->left_state, games[current_game]->right_state);
+            break;
+          case GAME_11_POLYIAMOND_UID:
+            //Polyiamond game.
+            sides_match = matching_polyiamond(games[current_game], games[current_game]->left_state, games[current_game]->right_state);
+            break;
+          default:
+            //Normal games.
+            sides_match = matching(games[current_game]->left_state, games[current_game]->right_state, number_of_states);
+            break;
+        }
+        if(sides_match)
+        {
+          //If we just won, choose a random win message.
+          if(won_game == false)
           {
-            //If we just won, choose a random win message.
-            if(won_game == false)
-            {
-              current_win_message = win_messages[rand()%MAX_WIN_MESSAGES];
-            }
+            current_win_message = win_messages[rand()%MAX_WIN_MESSAGES];
+          }
 
-            won_game = true;
-          }
-          else
-          {
-            won_game = false;
-          }
+          won_game = true;
         }
         else
         {
-          //Polyomino game.
-          if(matching_polyomino(games[current_game], games[current_game]->left_state, games[current_game]->right_state))
-          {
-            //If we just won, choose a random win message.
-            if(won_game == false)
-            {
-              current_win_message = win_messages[rand()%MAX_WIN_MESSAGES];
-            }
-
-            won_game = true;
-          }
-          else
-          {
-            won_game = false;
-          }
+          won_game = false;
         }
       }
 
@@ -4654,6 +5115,181 @@ void draw_polyomino(NVGcontext * vg, Game * game, float x, float y, float width,
   }
 }
 
+void draw_polyiamond(NVGcontext * vg, Game * game, float x, float y, float width, float height, SDL_Color * colors, SDL_Point mouse, bool mouse_button_down, bool * collision)
+{
+  *collision = false;
+  int * outer_state = game->right_state;
+  int * inner_state = game->left_state;
+
+  Polyiamond * polyiamond = game->special;
+
+  float h = 0.0f;
+  float a = 0.0f;
+  float half_a = 0.0f;
+  float used_width = 0.0f;
+  float used_height = 0.0f;
+  if(height < width)
+  {
+    float n = (float) polyiamond->clipped_rows;
+    h = height / n;
+    a = 2.0f * h / sqrt(3);
+
+    used_width = a * polyiamond->clipped_cols;
+    if(width < used_width)
+    {
+      n = (float) polyiamond->clipped_cols;
+      a = width / n;
+      h = sqrt(3) * a / 2.0f;
+    }
+  }
+  else
+  {//height >= width
+    float n = (float) polyiamond->clipped_cols;
+    a = width / n;
+    h = sqrt(3) * a / 2.0f;
+
+    used_height = h * polyiamond->clipped_rows;
+    if(height < used_height)
+    {
+      n = (float) polyiamond->clipped_rows;
+      h = height / n;
+      a = 2.0f * h / sqrt(3);
+    }
+  }
+
+  half_a = a * 0.5f;
+  used_width = a * polyiamond->clipped_cols / 2.0f + half_a;
+  used_height = h * polyiamond->clipped_rows;
+
+  x = x + (width - used_width) / 2.0f;
+  y = y + (height - used_height) / 2.0f;
+
+  x = x + half_a;
+  float original_x = x;
+  float original_y = y;
+
+  //float stroke_width = a * 0.025f * 0.75f;//0.025f;//0.05f;
+  //float inner_stroke_width = a * 0.025f;//stroke_width * 0.75f;
+  //float stroke_width = a * 0.061803398875f * 0.5f;
+  float stroke_width = a * INVERSE_GOLDEN_RATIO / 20.0f;
+  float inner_stroke_width = stroke_width * INVERSE_GOLDEN_RATIO;//0.75f;//INVERSE_GOLDEN_RATIO;//0.75f;
+  NVGcolor stroke_color = nvgRGB(255, 255, 255);
+
+  bool facing = polyiamond->clipped_first_triangle_facing;
+  bool facing_previous_row = facing;
+
+  if(mouse_button_down)
+  {
+    for(int r = polyiamond->minimum.row; r <= polyiamond->maximum.row; r++)
+    {
+      for(int c = polyiamond->minimum.col; c <= polyiamond->maximum.col; c++)
+      {
+        int index = r * polyiamond->cols + c;
+        if(0 <= outer_state[index])
+        {
+          if(facing == POLYIAMOND_FACING_UP)
+          {
+            if(point_in_triangle(mouse.x, mouse.y, x, y, x - half_a, y + h, x + half_a, y + h))
+            {
+              polyiamond_transform(game, r, c, outer_state, 1);
+              *collision = true;
+            }
+          }
+          else
+          {
+            if(point_in_triangle(mouse.x, mouse.y, x - half_a, y, x, y + h, x + half_a, y))
+            {
+              polyiamond_transform(game, r, c, outer_state, 1);
+              *collision = true;
+            }
+          }
+        }
+        x = x + half_a;
+        facing = !facing;
+      }
+      x = original_x;
+      y = y + h;
+      facing = !facing_previous_row;
+      facing_previous_row = facing;
+    }
+  }
+
+  x = original_x;
+  y = original_y;
+  facing = polyiamond->clipped_first_triangle_facing;
+  facing_previous_row = facing;
+
+  for(int r = polyiamond->minimum.row; r <= polyiamond->maximum.row; r++)
+  {
+    for(int c = polyiamond->minimum.col; c <= polyiamond->maximum.col; c++)
+    {
+      int index = r * polyiamond->cols + c;
+      if(0 <= outer_state[index])
+      {
+        SDL_Color outer_color = colors[outer_state[index]];
+        SDL_Color inner_color = colors[inner_state[index]];
+
+        nvgBeginPath(vg);
+        if(facing == POLYIAMOND_FACING_UP)
+        {
+          nvgMoveTo(vg, x, y);
+          nvgLineTo(vg, x - half_a, y + h);
+          nvgLineTo(vg, x + half_a, y + h);
+        }
+        else
+        {
+          nvgMoveTo(vg, x - half_a, y);
+          nvgLineTo(vg, x, y + h);
+          nvgLineTo(vg, x + half_a, y);
+        }
+        nvgClosePath(vg);
+        nvgFillColor(vg, nvgRGB(outer_color.r, outer_color.g, outer_color.b));
+        nvgFill(vg);
+        nvgStrokeColor(vg, stroke_color);
+        nvgStrokeWidth(vg, stroke_width);
+        nvgStroke(vg);
+
+        nvgBeginPath(vg);
+        if(facing == POLYIAMOND_FACING_UP)
+        {
+          float hh = h * INVERSE_GOLDEN_RATIO;
+          float yy = (y + 2.0f * h / 3.0f) - (2.0f * hh / 3.0f);
+          float small_a = 2.0f * hh / sqrt(3);
+          float half_small_a = small_a * 0.5f;
+          nvgMoveTo(vg, x, yy);
+          nvgLineTo(vg, x - half_small_a, yy + hh);
+          nvgLineTo(vg, x + half_small_a, yy + hh);
+        }
+        else
+        {
+          float hh = h * INVERSE_GOLDEN_RATIO;
+          float small_a = 2.0f * hh / sqrt(3);
+          float half_small_a = small_a * 0.5f;
+          float yy = (y + h / 3.0f) + (2.0f * hh / 3.0f);
+          nvgMoveTo(vg, x, yy);
+          nvgLineTo(vg, x + half_small_a, yy - hh);
+          nvgLineTo(vg, x - half_small_a, yy - hh);
+        }
+        nvgClosePath(vg);
+        nvgFillColor(vg, nvgRGB(inner_color.r, inner_color.g, inner_color.b));
+        nvgFill(vg);
+        //nvgLineJoin(vg, NVG_ROUND);
+        if(!same_color(inner_color, outer_color))
+        {
+          nvgStrokeColor(vg, stroke_color);
+          nvgStrokeWidth(vg, inner_stroke_width);
+          nvgStroke(vg);
+        }
+      }
+      x = x + half_a;
+      facing = !facing;
+    }
+    x = original_x;
+    y = y + h;
+    facing = !facing_previous_row;
+    facing_previous_row = facing;
+  }
+}
 
 
 static inline bool same_color(SDL_Color c1, SDL_Color c2)
